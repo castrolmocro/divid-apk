@@ -3,13 +3,16 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "node index.js"
-healthcheckPath = "/"
-healthcheckTimeout = 120
+healthcheckPath = "/health"
+healthcheckTimeout = 180
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
+restartPolicyMaxRetries = 15
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "python3", "pkg-config", "pixman", "cairo", "pango", "libjpeg", "libpng", "giflib"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps --no-audit"]
+cmds = [
+  "npm install --legacy-peer-deps --no-audit --prefer-offline",
+  "node -e \"try{const f='node_modules/@dongdev/fca-unofficial/node_modules/gradient-string/dist/index.js';const s=require('fs').readFileSync(f,'utf8');if(!s.includes('module.exports')){require('fs').writeFileSync(f,s.replace('export default',\"const _gs=\").replace(/export\\s+\\{[^}]*\\}/,'module.exports=_gs;'));}}catch(_){}\" || true"
+]

@@ -2,7 +2,10 @@
 nixPkgs = ["nodejs_20", "python3", "pkg-config", "pixman", "cairo", "pango", "libjpeg", "libpng", "giflib"]
 
 [phases.install]
-cmds = ["npm install --legacy-peer-deps --no-audit"]
+cmds = [
+  "npm install --legacy-peer-deps --no-audit",
+  "node -e \"try{const f='node_modules/@dongdev/fca-unofficial/node_modules/gradient-string/dist/index.js';const s=require('fs').readFileSync(f,'utf8');if(!s.includes('module.exports')){const fixed=s.replace(/export default (\\w+)/,'module.exports=$1').replace(/export\\s*\\{[^}]*\\}/,'');require('fs').writeFileSync(f,fixed);}}catch(_){}\" || true"
+]
 
 [start]
 cmd = "node index.js"

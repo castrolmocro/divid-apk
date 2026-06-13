@@ -7,20 +7,49 @@
 <script src="/socket.io/socket.io.js"></script>
 <style>
 :root{
-  --bg:#000;--s1:rgba(255,255,255,.06);--s2:rgba(255,255,255,.10);--s3:rgba(255,255,255,.15);
-  --bd:rgba(255,255,255,.12);--text:#fff;--t2:rgba(255,255,255,.55);--t3:rgba(255,255,255,.35);
-  --blue:#0A84FF;--green:#30D158;--red:#FF453A;--yellow:#FFD60A;--purple:#BF5AF2;--cyan:#5AC8F5;--orange:#FF9F0A;
-  --blur:saturate(180%) blur(20px);--r:18px;--r2:12px;--r3:8px;
+  --bg:#000;
+  --s1:rgba(255,255,255,.07);--s2:rgba(255,255,255,.12);--s3:rgba(255,255,255,.18);
+  --bd:rgba(255,255,255,.13);--bd2:rgba(255,255,255,.08);
+  --text:#fff;--t2:rgba(255,255,255,.55);--t3:rgba(255,255,255,.35);
+  --blue:#0A84FF;--green:#30D158;--red:#FF453A;--yellow:#FFD60A;
+  --purple:#BF5AF2;--cyan:#5AC8F5;--orange:#FF9F0A;
+  --blur:saturate(200%) blur(28px);
+  --r:22px;--r2:14px;--r3:10px;
+  --glass:rgba(255,255,255,.06);
+  --glass-border:1px solid rgba(255,255,255,.14);
+  --shadow:0 8px 40px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.06);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-top:env(safe-area-inset-top,0px);
+  --nav-h:65px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{font-size:16px;scroll-behavior:smooth;}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
-body::before{content:'';position:fixed;inset:0;z-index:-1;background:radial-gradient(ellipse 80% 50% at 20% -10%,rgba(10,132,255,.18),transparent),radial-gradient(ellipse 60% 40% at 90% 110%,rgba(191,90,242,.15),transparent),#000;}
-::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:9px;}
+html{font-size:16px;scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',system-ui,sans-serif;
+  min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;
+  padding-bottom:calc(var(--nav-h) + var(--safe-bottom));
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:-2;
+  background:
+    radial-gradient(ellipse 70% 55% at 15% -10%,rgba(10,132,255,.22),transparent),
+    radial-gradient(ellipse 55% 45% at 88% 108%,rgba(191,90,242,.18),transparent),
+    radial-gradient(ellipse 40% 30% at 50% 50%,rgba(90,200,245,.06),transparent),
+    #000;
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;
+  background:radial-gradient(ellipse 100% 60% at 50% 100%,rgba(10,132,255,.04),transparent);
+  pointer-events:none;
+}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:9px;}
 /* ── Login ── */
 #login-screen{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);}
 #login-screen.hidden{display:none;}
-.login-card{background:var(--s1);border:1px solid var(--bd);border-radius:24px;padding:40px 36px;width:min(380px,90vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+.login-card{background:rgba(255,255,255,.07);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.16);border-radius:28px;padding:44px 36px;width:min(390px,92vw);text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.06);}
 .login-logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--blue),var(--purple));display:inline-flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;margin-bottom:20px;box-shadow:0 0 30px rgba(10,132,255,.4);}
 .login-card h2{font-size:22px;font-weight:700;margin-bottom:6px;}
 .login-card p{font-size:13px;color:var(--t2);margin-bottom:28px;}
@@ -31,11 +60,24 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;background:radial-grad
 .login-btn:active{transform:scale(.98);}
 .login-err{color:var(--red);font-size:12px;margin-top:8px;min-height:18px;}
 /* ── Header ── */
-.header{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(0,0,0,.75);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-bottom:1px solid var(--bd);}
-.header-logo{display:flex;align-items:center;gap:12px;}
-.header-logo .icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;box-shadow:0 0 16px rgba(10,132,255,.35);}
+.header{
+  position:sticky;top:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;padding-top:calc(12px + var(--safe-top));
+  background:rgba(0,0,0,.8);
+  -webkit-backdrop-filter:saturate(200%) blur(30px);backdrop-filter:saturate(200%) blur(30px);
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.header-logo{display:flex;align-items:center;gap:11px;}
+.header-logo .icon{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:800;
+  box-shadow:0 0 20px rgba(10,132,255,.4);
+}
 .header-logo h1{font-size:17px;font-weight:700;}
-.header-logo span{display:block;font-size:11px;color:var(--t2);}
+.header-logo span{display:block;font-size:10px;color:var(--t2);}
 .status-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;transition:all .3s;}
 .status-pill.online{background:rgba(48,209,88,.15);color:var(--green);}
 .status-pill.offline{background:rgba(255,69,58,.15);color:var(--red);}
@@ -46,8 +88,21 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;background:radial-grad
 .status-pill.connecting .dot{background:var(--yellow);}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.85);}}
 /* ── Layout ── */
-.main{max-width:1000px;margin:0 auto;padding:18px 14px;}
-.card{background:var(--s1);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bd);border-radius:var(--r);padding:18px;box-shadow:0 4px 30px rgba(0,0,0,.4);}
+.main{max-width:1000px;margin:0 auto;padding:16px 14px;}
+.card{
+  background:rgba(255,255,255,.06);
+  -webkit-backdrop-filter:saturate(200%) blur(28px);
+  backdrop-filter:saturate(200%) blur(28px);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:var(--r);padding:18px;
+  box-shadow:0 8px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;inset:0;border-radius:var(--r);
+  background:linear-gradient(145deg,rgba(255,255,255,.04),transparent 60%);
+  pointer-events:none;
+}
 .card-title{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;}
 /* ── Bot Info ── */
 .bot-row{display:flex;align-items:center;gap:16px;margin-bottom:14px;}
@@ -68,14 +123,74 @@ body::before{content:'';position:fixed;inset:0;z-index:-1;background:radial-grad
 .c-cyan .stat-value{color:var(--cyan);}  .c-orange .stat-value{color:var(--orange);}
 .c-red .stat-value{color:var(--red);}    .c-pink .stat-value{color:#FF375F;}
 /* ── Tabs ── */
-.tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.tabs{
+  display:flex;gap:6px;margin-bottom:14px;
+  overflow-x:auto;padding-bottom:4px;scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
 .tabs::-webkit-scrollbar{display:none;}
-.tab{padding:8px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:var(--s1);color:var(--t2);transition:all .2s;white-space:nowrap;font-family:inherit;}
+.tab{
+  padding:9px 16px;border-radius:22px;font-size:13px;font-weight:600;
+  cursor:pointer;border:1px solid var(--bd);
+  background:rgba(255,255,255,.06);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  color:var(--t2);transition:all .2s;white-space:nowrap;font-family:inherit;
+  min-height:38px;
+}
 .tab:hover{background:var(--s2);}
-.tab.active{background:var(--blue);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(10,132,255,.4);}
-.tab-pane{display:none;animation:fadeIn .2s ease;}
+.tab.active{
+  background:var(--blue);color:#fff;border-color:transparent;
+  box-shadow:0 4px 18px rgba(10,132,255,.45);
+}
+.tab-pane{display:none;animation:fadeIn .22s ease;}
 .tab-pane.active{display:block;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── Bottom Nav (mobile) ── */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;z-index:500;
+  background:rgba(10,10,15,.88);
+  -webkit-backdrop-filter:saturate(200%) blur(30px);backdrop-filter:saturate(200%) blur(30px);
+  border-top:1px solid rgba(255,255,255,.1);
+  padding:8px 6px;
+  padding-bottom:calc(8px + var(--safe-bottom));
+  justify-content:space-around;align-items:center;
+  box-shadow:0 -4px 30px rgba(0,0,0,.5);
+}
+.bn-item{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 10px;border-radius:12px;cursor:pointer;
+  border:none;background:transparent;
+  color:rgba(255,255,255,.45);font-size:9px;font-weight:700;
+  font-family:inherit;letter-spacing:.3px;
+  transition:all .2s;-webkit-tap-highlight-color:transparent;min-width:52px;
+}
+.bn-item .bn-icon{font-size:22px;line-height:1;transition:transform .2s;}
+.bn-item.active{color:var(--blue);}
+.bn-item.active .bn-icon{transform:scale(1.12);}
+
+@media(max-width:700px){
+  body{padding-bottom:calc(var(--nav-h) + var(--safe-bottom) + 10px);}
+  .bottom-nav{display:flex;}
+  .tabs{display:none;}
+  .main{padding:12px 10px;}
+  .stats-grid{gap:8px;}
+  .stat-card{padding:12px 8px;}
+  .stat-value{font-size:20px;}
+  .card{padding:14px;border-radius:18px;}
+  .btn{padding:11px 16px;font-size:13px;min-height:44px;}
+  .btn-sm{padding:9px 13px;font-size:12px;min-height:38px;}
+  .header-logo span{display:none;}
+  textarea,input[type=text],input[type=password],input[type=number]{padding:12px 14px;font-size:14px;}
+  .cmd-grid{grid-template-columns:1fr 1fr;}
+  .act-grid{grid-template-columns:1fr 1fr;}
+  .toggle-row{padding:13px 0;}
+  .t-info .t-label{font-size:15px;}
+  #toast-container{bottom:calc(var(--nav-h) + var(--safe-bottom) + 10px);}
+  .modal{border-radius:24px;padding:22px 18px;}
+  .meta-grid{grid-template-columns:1fr;}
+}
 /* ── Forms ── */
 .form-group{margin-bottom:12px;}
 .form-group label{display:block;font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
@@ -204,6 +319,28 @@ input:checked+.slider::before{transform:translateX(19px);}
 </style>
 </head>
 <body>
+
+<!-- ═══ BOTTOM NAV (mobile) ═══════════════════════════════════════════════ -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bn-item active" data-tab="control">
+    <span class="bn-icon">🎮</span>التحكم
+  </button>
+  <button class="bn-item" data-tab="commands">
+    <span class="bn-icon">📦</span>الأوامر
+  </button>
+  <button class="bn-item" data-tab="activation">
+    <span class="bn-icon">🎛</span>تفعيل
+  </button>
+  <button class="bn-item" data-tab="editor">
+    <span class="bn-icon">✏️</span>محرر
+  </button>
+  <button class="bn-item" data-tab="settings">
+    <span class="bn-icon">⚙️</span>الإعدادات
+  </button>
+  <button class="bn-item" data-tab="cookies">
+    <span class="bn-icon">🍪</span>كوكيز
+  </button>
+</nav>
 
 <!-- ═══ LOGIN SCREEN ═══════════════════════════════════════════════════════ -->
 <div id="login-screen">
@@ -422,13 +559,12 @@ input:checked+.slider::before{transform:translateX(19px);}
 
   <!-- ─ Settings ───────────────────────────────────────── -->
   <div class="tab-pane" id="tab-settings">
-    <div class="card">
+    <div class="card" style="margin-bottom:12px;">
       <div class="card-title">الإعدادات العامة</div>
       <div class="settings-section">
         <div class="settings-section-title">معلومات البوت</div>
         <div class="form-group"><label>اسم البوت</label><input type="text" id="cfg-botName" value="DAVID V1"></div>
         <div class="form-group"><label>Prefix (بادئة الأوامر)</label><input type="text" id="cfg-prefix" value="/" maxlength="3"></div>
-        <div class="form-group"><label>معرف المالك (ownerID)</label><input type="text" id="cfg-ownerID" placeholder="100012345678"></div>
         <div class="form-group"><label>كلمة سر لوحة التحكم</label><input type="password" id="cfg-dashpwd" placeholder="الكلمة الحالية محفوظة"></div>
       </div>
       <div class="settings-section">
@@ -436,13 +572,47 @@ input:checked+.slider::before{transform:translateX(19px);}
         <div class="toggle-row"><div class="t-info"><div class="t-label">Stealth Mode</div><div class="t-desc">محاكاة تصفح بشري + تدوير UA</div></div><label class="switch"><input type="checkbox" id="cfg-stealth" checked><span class="slider"></span></label></div>
         <div class="toggle-row"><div class="t-info"><div class="t-label">Keep Alive</div><div class="t-desc">ping دوري للحفاظ على الجلسة</div></div><label class="switch"><input type="checkbox" id="cfg-keepalive" checked><span class="slider"></span></label></div>
         <div class="toggle-row"><div class="t-info"><div class="t-label">MQTT Health Check</div><div class="t-desc">إعادة الاتصال تلقائياً</div></div><label class="switch"><input type="checkbox" id="cfg-mqtt" checked><span class="slider"></span></label></div>
-        <div class="toggle-row"><div class="t-info"><div class="t-label">Admin Only Mode</div><div class="t-desc">البوت يرد على الأدمن فقط</div></div><label class="switch"><input type="checkbox" id="cfg-adminonly"><span class="slider"></span></label></div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
         <button class="btn btn-ghost" onclick="loadSettings()">↩ إعادة تحميل</button>
       </div>
       <div class="hint" id="settings-hint" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- ─ Admin Management ─ -->
+    <div class="card">
+      <div class="card-title">👑 إدارة الأدمن — البوت يرد على هؤلاء فقط</div>
+      <div class="settings-section">
+        <div class="settings-section-title">معرّف المالك (Owner ID)</div>
+        <div class="form-group">
+          <label>معرف المالك — صلاحيات كاملة</label>
+          <input type="text" id="adm-ownerID" placeholder="100012345678">
+          <div class="hint">معرف Facebook الخاص بك (UID)</div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">سوبر أدمن (Super Admins)</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input type="text" id="adm-super-input" placeholder="أدخل UID ثم اضغط إضافة" style="flex:1;">
+          <button class="btn btn-primary btn-sm" onclick="addSuperAdmin()">+ إضافة</button>
+        </div>
+        <div id="adm-super-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;"></div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">أدمن البوت (Bot Admins)</div>
+        <div class="hint" style="margin-bottom:8px;">⚠️ البوت لا يرد إلا على المالك والأدمن المضافين هنا فقط</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input type="text" id="adm-admin-input" placeholder="أدخل UID ثم اضغط إضافة" style="flex:1;">
+          <button class="btn btn-primary btn-sm" onclick="addAdmin()">+ إضافة</button>
+        </div>
+        <div id="adm-admin-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-success" onclick="saveAdmins()">💾 حفظ قائمة الأدمن</button>
+        <button class="btn btn-ghost" onclick="loadAdmins()">↩ إعادة تحميل</button>
+      </div>
+      <div class="hint" id="adm-hint" style="margin-top:8px;"></div>
     </div>
   </div>
 
@@ -840,21 +1010,19 @@ async function loadSettings() {
   const c = r.config;
   setVal("cfg-botName",   c.botName   || "DAVID V1");
   setVal("cfg-prefix",    c.prefix    || "/");
-  setVal("cfg-ownerID",   c.ownerID   || "");
   setCheck("cfg-stealth",   c.stealth?.enable !== false);
   setCheck("cfg-keepalive", c.keepAlive?.enable !== false);
   setCheck("cfg-mqtt",      c.mqttHealthCheck?.enable !== false);
-  setCheck("cfg-adminonly", c.adminOnly?.enable === true);
+  await loadAdmins();
 }
 async function saveSettings() {
   const body = {
     botName:  getVal("cfg-botName"),
     prefix:   getVal("cfg-prefix"),
-    ownerID:  getVal("cfg-ownerID"),
     stealth:         { enable: getCheck("cfg-stealth") },
     keepAlive:       { enable: getCheck("cfg-keepalive") },
     mqttHealthCheck: { enable: getCheck("cfg-mqtt") },
-    adminOnly:       { enable: getCheck("cfg-adminonly") },
+    adminOnly:       { enable: true },
   };
   const dashPwd = getVal("cfg-dashpwd").trim();
   if (dashPwd) body.dashboard = { password: dashPwd };
@@ -867,6 +1035,83 @@ function setVal(id,v)   { const e=document.getElementById(id); if(e)e.value=v; }
 function getVal(id)     { return document.getElementById(id)?.value||""; }
 function setCheck(id,v) { const e=document.getElementById(id); if(e)e.checked=!!v; }
 function getCheck(id)   { return !!document.getElementById(id)?.checked; }
+
+// ─── Admin Management ─────────────────────────────────────────────────────────
+let _superAdmins = [];
+let _admins      = [];
+
+async function loadAdmins() {
+  const r = await apiFetch("/api/admins");
+  if (!r.ok) return;
+  _superAdmins = (r.superAdminBot || []).map(String);
+  _admins      = (r.adminBot      || []).map(String);
+  setVal("adm-ownerID", r.ownerID || "");
+  renderAdminList("adm-super-list", _superAdmins, "super");
+  renderAdminList("adm-admin-list", _admins,      "admin");
+}
+
+function renderAdminList(containerId, list, type) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<span style="font-size:12px;color:var(--t3);">لا يوجد أدمن مضاف</span>';
+    return;
+  }
+  el.innerHTML = list.map(uid => `
+    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;font-size:12px;font-family:monospace;">
+      <span>${esc(uid)}</span>
+      <button onclick="removeAdmin('${type}','${uid}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;">✕</button>
+    </div>`).join("");
+}
+
+function addSuperAdmin() {
+  const inp = document.getElementById("adm-super-input");
+  const uid = (inp?.value || "").trim().replace(/\D/g, "");
+  if (!uid) { toast("أدخل UID صحيح", "error"); return; }
+  if (_superAdmins.includes(uid)) { toast("موجود مسبقاً", "warn"); return; }
+  _superAdmins.push(uid);
+  renderAdminList("adm-super-list", _superAdmins, "super");
+  if (inp) inp.value = "";
+}
+
+function addAdmin() {
+  const inp = document.getElementById("adm-admin-input");
+  const uid = (inp?.value || "").trim().replace(/\D/g, "");
+  if (!uid) { toast("أدخل UID صحيح", "error"); return; }
+  if (_admins.includes(uid)) { toast("موجود مسبقاً", "warn"); return; }
+  _admins.push(uid);
+  renderAdminList("adm-admin-list", _admins, "admin");
+  if (inp) inp.value = "";
+}
+
+function removeAdmin(type, uid) {
+  if (type === "super") {
+    _superAdmins = _superAdmins.filter(x => x !== uid);
+    renderAdminList("adm-super-list", _superAdmins, "super");
+  } else {
+    _admins = _admins.filter(x => x !== uid);
+    renderAdminList("adm-admin-list", _admins, "admin");
+  }
+}
+
+async function saveAdmins() {
+  const ownerID = getVal("adm-ownerID").trim().replace(/\D/g, "");
+  const body = {
+    ownerID,
+    adminBot:      _admins.map(Number),
+    superAdminBot: _superAdmins.map(Number),
+  };
+  const r = await apiFetch("/api/admins", { method: "POST", body: JSON.stringify(body) });
+  const hint = document.getElementById("adm-hint");
+  if (r.ok) {
+    toast("✅ تم حفظ قائمة الأدمن", "success");
+    if (hint) hint.textContent = "✅ تم الحفظ — البوت يرد على " + (_admins.length + _superAdmins.length + (ownerID ? 1 : 0)) + " شخص";
+  } else {
+    toast("❌ " + (r.error || "فشل"), "error");
+    if (hint) hint.textContent = "❌ " + r.error;
+  }
+}
+
 
 // ─── Messages ──────────────────────────────────────────────────────────────────
 async function loadMessages() {
@@ -1051,6 +1296,47 @@ document.querySelectorAll(".tab").forEach(btn => {
     if (t === "editor")     loadCommands().then(() => {});
     if (t === "activation") { if (!_allCmds.length) loadCommands(); }
   });
+});
+
+// ─── Bottom Nav ──────────────────────────────────────────────────────────────
+document.querySelectorAll("#bottomNav .bn-item").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const t = btn.dataset.tab;
+    // sync with desktop tabs
+    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll("#bottomNav .bn-item").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const desktopTab = document.querySelector(`.tab[data-tab="${t}"]`);
+    if (desktopTab) desktopTab.classList.add("active");
+    const pane = document.getElementById("tab-" + t);
+    if (pane) pane.classList.add("active");
+    if (t === "commands")   loadCommands();
+    if (t === "protection") loadProtections();
+    if (t === "settings")   loadSettings();
+    if (t === "messages")   loadMessages();
+    if (t === "logs")       loadLogsHistory();
+    if (t === "editor")     loadCommands().then(() => {});
+    if (t === "activation") { if (!_allCmds.length) loadCommands(); }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+});
+
+// sync bottom nav when desktop tabs clicked
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const t = btn.dataset.tab;
+    document.querySelectorAll("#bottomNav .bn-item").forEach(b => {
+      b.classList.toggle("active", b.dataset.tab === t);
+    });
+  });
+});
+
+// ─── Event delegation for admin inputs ────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  if (e.target.id === "adm-super-input") addSuperAdmin();
+  if (e.target.id === "adm-admin-input") addAdmin();
 });
 
 // ─── Toast ─────────────────────────────────────────────────────────────────────

@@ -6,15 +6,36 @@
 
 const rateLimit = require("../protection/rateLimit");
 
+// ─── Anti-Duplicate Guard (منع معالجة نفس الرسالة مرتين) ───────────────────────
+const _processed = new Map();   // messageID → timestamp
+const DEDUP_TTL  = 60 * 1000;   // 60 ثانية
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, ts] of _processed) {
+    if (now - ts > DEDUP_TTL) _processed.delete(k);
+  }
+}, 30 * 1000);
+
+function isDuplicate(msgID) {
+  if (!msgID) return false;
+  if (_processed.has(msgID)) return true;
+  _processed.set(msgID, Date.now());
+  return false;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 function getRole(senderID) {
-  const cfg     = global.GoatBot?.config || {};
-  const sid     = String(senderID);
-  const supers  = [...(cfg.superAdminBot || []), cfg.ownerID].filter(Boolean).map(String);
-  const admins  = (cfg.adminBot || []).map(String);
+  const cfg    = global.GoatBot?.config || {};
+  const sid    = String(senderID);
+  const supers = [...(cfg.superAdminBot || []), cfg.ownerID].filter(Boolean).map(String);
+  const admins = (cfg.adminBot || []).map(String);
   if (supers.includes(sid)) return 3;
   if (admins.includes(sid)) return 2;
   return 0;
+}
+
+function isAdmin(senderID) {
+  return getRole(senderID) >= 2;
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -77,8 +98,22 @@ async function onEventCmds(api, event, commands) {
   if (!event || !api) return;
   global.lastMqttActivity = Date.now();
 
-  const { type, senderID, threadID, body = "" } = event;
+  const { type, senderID, threadID, body = "", messageID } = event;
   if (!senderID || !threadID) return;
+
+  // تجاهل رسائل البوت لنفسه
+  if (String(senderID) === String(global.GoatBot?.botID)) return;
+
+  // منع معالجة نفس الرسالة مرتين
+  if (messageID && isDuplicate(messageID)) return;
+
+  // ── تتبع رسائل البشر للـ angel monitoring (قبل فحص الأدمن) ──────────────────
+  if ((type === "message" || type === "message_reply") && threadID) {
+    if (!global._msgListeners) global._msgListeners = [];
+    for (const fn of global._msgListeners) {
+      try { fn({ threadID, senderID, ts: Date.now() }); } catch (_) {}
+    }
+  }
 
   // Dashboard stats
   try {
@@ -110,14 +145,16 @@ async function onEventCmds(api, event, commands) {
   // DM lock
   if (global.GoatBot?.dmLocked && !event.isGroup) return;
 
-  // Flood + Spam
+  // ─── نظام الأدمن — البوت يرد على أدمن البوت فقط ──────────────────────────────
+  const role = getRole(senderID);
+  if (role < 2) {
+    // تجاهل أي شخص ليس أدمناً (لا رد، لا رسالة خطأ)
+    return;
+  }
+
+  // Flood + Spam (للأدمن فقط بعد التحقق)
   if (checkFlood(threadID, senderID)) return;
   if (checkSpam(senderID)) return;
-
-  // Admin-only mode
-  const adminOnly = global.GoatBot?.config?.adminOnly?.enable;
-  const role      = getRole(senderID);
-  if (adminOnly && role < 2) return;
 
   const prefix = global.GoatBot?.config?.prefix || "/";
   if (!body.trimStart().startsWith(prefix)) return;
@@ -137,14 +174,14 @@ async function onEventCmds(api, event, commands) {
     if (!ctrl.isEnabled(threadID, cmd.config?.name || cmdName)) return;
   } catch (_) {}
 
-  // Permission check
+  // Permission check (owner-only commands need role 3)
   const required = cmd.config?.role ?? 2;
   if (role < required) {
-    try { await api.sendMessage("⛔ هذا الأمر للأدمن فقط.", threadID); } catch (_) {}
+    try { await api.sendMessage("⛔ هذا الأمر للمالك فقط.", threadID); } catch (_) {}
     return;
   }
 
-  // Execute
+  // Execute — رسالة واحدة فقط
   const ctx = {
     api, event, args, commandName: cmdName,
     message: buildMessage(api, event),

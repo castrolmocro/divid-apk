@@ -186,6 +186,39 @@ function startDashboard(port = 5000) {
     } catch (e) { res.json({ ok: false, error: e.message }); }
   });
 
+  // ── Admins Management ────────────────────────────────────────────────────────
+  app.get("/api/admins", auth, (_, res) => {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+      res.json({
+        ok: true,
+        adminBot:      cfg.adminBot      || [],
+        superAdminBot: cfg.superAdminBot || [],
+        ownerID:       cfg.ownerID       || "",
+      });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post("/api/admins", auth, (req, res) => {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+      const { adminBot, superAdminBot, ownerID } = req.body;
+
+      if (Array.isArray(adminBot))      cfg.adminBot      = adminBot.map(Number).filter(Boolean);
+      if (Array.isArray(superAdminBot)) cfg.superAdminBot = superAdminBot.map(Number).filter(Boolean);
+      if (ownerID !== undefined)        cfg.ownerID       = String(ownerID).trim();
+
+      global._selfWriteConfig = true;
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+      setTimeout(() => { global._selfWriteConfig = false; }, 3000);
+
+      if (global.GoatBot) global.GoatBot.config = cfg;
+      global.config  = cfg;
+      if (_io) _io.emit("config-reloaded", { ts: Date.now() });
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   // ── Bot Control ──────────────────────────────────────────────────────────────
   app.post("/api/control", auth, (req, res) => {
     const { action } = req.body;
@@ -377,6 +410,9 @@ function startDashboard(port = 5000) {
 
     socket.on("ping-bot", () => socket.emit("pong-bot", { ts: Date.now() }));
   });
+
+  // ── Health check (Railway / Render / Fly.io) ──────────────────────────────────
+  app.get("/health", (_, res) => res.json({ ok: true, ts: Date.now(), uptime: process.uptime() }));
 
   // ── Catch-all SPA ─────────────────────────────────────────────────────────────
   app.get("*", (_, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
