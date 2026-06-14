@@ -14,6 +14,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -72,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> fileCallback;
     private final List<BotProfile> profiles = new ArrayList<>();
     private int activeIdx = 0;
+
+    // ── Phone-as-Host: WakeLock ───────────────────────────────────────────
+    private PowerManager.WakeLock wakeLock;
 
     // ── BotProfile ───────────────────────────────────────────────────────
     static class BotProfile {
@@ -862,6 +867,69 @@ public class MainActivity extends AppCompatActivity {
             layout.addView(card);
         }
 
+        // ─── WakeLock card ──────────────────────────────────────────────
+        LinearLayout wakeCard = new LinearLayout(this);
+        wakeCard.setOrientation(LinearLayout.VERTICAL);
+        wakeCard.setBackground(makeRoundRect(dp(12), Color.parseColor("#1C2E1C")));
+        wakeCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams wcLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wcLp.bottomMargin = dp(10);
+        wakeCard.setLayoutParams(wcLp);
+
+        TextView wakeTitleTv = new TextView(this);
+        wakeTitleTv.setText("⚡  حماية من إيقاف الهاتف (OPPO / ColorOS 16)");
+        wakeTitleTv.setTextSize(14);
+        wakeTitleTv.setTypeface(null, Typeface.BOLD);
+        wakeTitleTv.setTextColor(Color.parseColor("#32D74B"));
+        wakeCard.addView(wakeTitleTv);
+
+        TextView wakeBodyTv = new TextView(this);
+        wakeBodyTv.setText("اضغط الزرين أدناه لمنع ColorOS من إيقاف البوت أثناء الاستخدام كسيرفر. WakeLock يُبقي المعالج نشطاً دون إضاءة الشاشة.");
+        wakeBodyTv.setTextSize(13);
+        wakeBodyTv.setTextColor(Color.parseColor("#EBEBF5"));
+        wakeBodyTv.setLineSpacing(0, 1.4f);
+        LinearLayout.LayoutParams wbLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        wbLp.topMargin = dp(4);
+        wbLp.bottomMargin = dp(8);
+        wakeBodyTv.setLayoutParams(wbLp);
+        wakeCard.addView(wakeBodyTv);
+
+        // Buttons row
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        android.widget.Button wakeBtn = new android.widget.Button(this);
+        wakeBtn.setText("🔒 تفعيل WakeLock");
+        wakeBtn.setTextSize(12);
+        wakeBtn.setTypeface(null, Typeface.BOLD);
+        wakeBtn.setTextColor(Color.WHITE);
+        wakeBtn.setBackground(makeRoundRect(dp(10), Color.parseColor("#1A4A1A")));
+        LinearLayout.LayoutParams wb1 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        wb1.rightMargin = dp(6);
+        wakeBtn.setLayoutParams(wb1);
+        wakeBtn.setOnClickListener(vv -> {
+            acquireWakeLock();
+            Toast.makeText(this, "✅ WakeLock مفعّل — البوت محمي لـ 4 ساعات", Toast.LENGTH_LONG).show();
+        });
+        btnRow.addView(wakeBtn);
+
+        android.widget.Button battBtn = new android.widget.Button(this);
+        battBtn.setText("⚙️ إعدادات ColorOS");
+        battBtn.setTextSize(12);
+        battBtn.setTypeface(null, Typeface.BOLD);
+        battBtn.setTextColor(Color.parseColor("#32D74B"));
+        battBtn.setBackground(makeRoundRect(dp(10), Color.parseColor("#1C1C1E")));
+        LinearLayout.LayoutParams wb2 = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        battBtn.setLayoutParams(wb2);
+        battBtn.setOnClickListener(vv -> showColorOsBatteryTips());
+        btnRow.addView(battBtn);
+
+        wakeCard.addView(btnRow);
+        layout.addView(wakeCard);
+        // ────────────────────────────────────────────────────────────────
+
         new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
             .setTitle("📡 استخدام الهاتف كسيرفر")
             .setView(scroll)
@@ -872,7 +940,7 @@ public class MainActivity extends AppCompatActivity {
                         Uri.parse("https://f-droid.org/packages/com.termux/")));
                 } catch (Exception ignored) {}
             })
-            .setNegativeButton("✕ إغلاق", null)
+            .setNegativeButton("🔋 استثناء البطارية", (d, which) -> requestIgnoreBatteryOptimization())
             .show();
     }
 
@@ -1015,11 +1083,103 @@ public class MainActivity extends AppCompatActivity {
         super.onBackPressed();
     }
 
-    @Override protected void onPause()   { super.onPause();   webView.onPause();   }
-    @Override protected void onResume()  { super.onResume();  webView.onResume();  }
+    @Override protected void onPause()  { super.onPause();  webView.onPause(); }
+    @Override protected void onResume() { super.onResume(); webView.onResume(); }
     @Override protected void onDestroy() {
+        releaseWakeLock();
         if (webView != null) { webView.stopLoading(); webView.destroy(); }
         super.onDestroy();
+    }
+
+    // ── WakeLock Management (Phone-as-Host) ───────────────────────────────
+    private void acquireWakeLock() {
+        try {
+            if (wakeLock == null) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                if (pm != null) {
+                    wakeLock = pm.newWakeLock(
+                        PowerManager.PARTIAL_WAKE_LOCK,
+                        "DAVID:ServerWakeLock"
+                    );
+                    wakeLock.setReferenceCounted(false);
+                }
+            }
+            if (wakeLock != null && !wakeLock.isHeld()) {
+                wakeLock.acquire(4 * 60 * 60 * 1000L); // 4 ساعات
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void releaseWakeLock() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        } catch (Exception ignored) {}
+    }
+
+    // ── Battery Optimization Exclusion ────────────────────────────────────
+    private void requestIgnoreBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                    i.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(i);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    // ── ColorOS/OPPO Battery Tips Dialog ──────────────────────────────────
+    private void showColorOsBatteryTips() {
+        ScrollView sv = new ScrollView(this);
+        LinearLayout ll = new LinearLayout(this);
+        ll.setOrientation(LinearLayout.VERTICAL);
+        ll.setPadding(dp(4), dp(4), dp(4), dp(4));
+        sv.addView(ll);
+
+        String[] steps = {
+            "① الإعدادات ← البطارية ← الاستهلاك الذكي",
+            "   ← ابحث عن [DAVID V1] ← اختر: لا تُحسِّن",
+            "",
+            "② الإعدادات ← التطبيقات ← [DAVID V1]",
+            "   ← استهلاك البطارية ← تشغيل في الخلفية: مسموح",
+            "",
+            "③ الإعدادات ← البطارية ← توفير الطاقة",
+            "   ← إضافة [DAVID V1] إلى القائمة البيضاء",
+            "",
+            "④ الإعدادات ← الخصوصية ← الصلاحيات الخاصة",
+            "   ← التشغيل التلقائي ← فعّل لـ [DAVID V1]",
+            "",
+            "⑤ من نافذة 'الهاتف كسيرفر' اضغط:",
+            "   [استثناء من توفير البطارية]",
+        };
+
+        for (String step : steps) {
+            TextView tv = new TextView(this);
+            tv.setText(step);
+            tv.setTextColor(step.isEmpty() ? Color.TRANSPARENT : Color.parseColor("#EBEBF5"));
+            tv.setTextSize(step.startsWith("  ") ? 12 : 13);
+            tv.setPadding(0, dp(2), 0, dp(2));
+            tv.setTypeface(null, step.startsWith("①") || step.startsWith("②") ||
+                step.startsWith("③") || step.startsWith("④") || step.startsWith("⑤")
+                ? Typeface.BOLD : Typeface.NORMAL);
+            ll.addView(tv);
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("⚡ إعدادات ColorOS لـ OPPO")
+            .setView(sv)
+            .setPositiveButton("✅ فهمت", null)
+            .setNeutralButton("⚙️ إعدادات البطارية", (d, w) -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS));
+                } catch (Exception ignored) {}
+            })
+            .show()
+            .getWindow().setBackgroundDrawable(makeRoundRect(dp(16), Color.parseColor("#1C1C1E")));
     }
 
     // ── Drawing Helpers ───────────────────────────────────────────────────
