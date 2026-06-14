@@ -44,8 +44,12 @@ const FILES = [
   "src/dashboard/public/index.html",
   "src/dashboard/server.js",
   "src/dashboard/public/angel.png",
+  "src/dashboard/public/angel2.png",
   "scripts/push-to-github.sh",
   "scripts/github-push.js",
+  "Procfile",
+  "railway.json",
+  "nixpacks.toml",
 ];
 
 const ROOT = path.join(__dirname, "..");
