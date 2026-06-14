@@ -346,28 +346,46 @@ function watchAccount() {
   });
 }
 
+// ─── Graceful shutdown ─────────────────────────────────────────────────────────
+function shutdown(signal) {
+  try { (global.log?.info || console.log)("MAIN", `${signal} — إيقاف نظيف…`); } catch (_) {}
+  try { stopListening(); } catch (_) {}
+  try { stopProtection(); } catch (_) {}
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT",  () => shutdown("SIGINT"));
+
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 (async () => {
-  printBanner();
-  fs.ensureDirSync(path.join(ROOT, "data"));
-  fs.ensureDirSync(path.join(ROOT, "database/data"));
+  try {
+    printBanner();
+    fs.ensureDirSync(path.join(ROOT, "data"));
+    fs.ensureDirSync(path.join(ROOT, "database/data"));
 
-  // Dashboard أولاً حتى يستجيب healthcheck فوراً
-  await startDashboard(PORT);
+    // 1. Dashboard أولاً — يجب أن يستجيب PORT قبل أي شيء آخر
+    await startDashboard(PORT);
 
-  // DB
-  try { await initDB(); log.ok("DB", "قاعدة البيانات جاهزة ✔"); }
-  catch (e) { log.error("DB", e.message); }
+    // 2. قاعدة البيانات
+    try { await initDB(); log.ok("DB", "قاعدة البيانات جاهزة ✔"); }
+    catch (e) { log.error("DB", `فشل تهيئة DB (غير حرج): ${e.message}`); }
 
-  // Commands
-  global.GoatBot.commands = loadCommands(CMDS_DIR);
-  global.commands = global.GoatBot.commands;
+    // 3. الأوامر
+    global.GoatBot.commands = loadCommands(CMDS_DIR);
+    global.commands          = global.GoatBot.commands;
 
-  // تعريض startBot
-  global.startBot = startBot;
-  global.GoatBot.reLoginBot = startBot;
+    // 4. تعريض startBot للوحة التحكم
+    global.startBot          = startBot;
+    global.GoatBot.reLoginBot = startBot;
 
-  // بدء البوت
-  await startBot();
-  watchAccount();
+    // 5. تسجيل الدخول
+    await startBot();
+
+    // 6. مراقبة account.txt لإعادة التسجيل تلقائياً
+    watchAccount();
+
+  } catch (err) {
+    console.error("[MAIN] خطأ فادح:", err?.message || err);
+    process.exit(1);
+  }
 })();
