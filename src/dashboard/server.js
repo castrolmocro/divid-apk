@@ -504,7 +504,7 @@ function startDashboard(port = 5000) {
   });
 
   // ── Messenger: thread info ──────────────────────────────────────────────────
-  app.get("/api/messenger/thread/:tid/info", auth, (req, res) => {
+  function _getThreadInfoHandler(req, res) {
     const api = global.GoatBot?.fcaApi;
     if (!api) return res.json({ ok: false, error: "البوت غير متصل" });
     const tid = req.params.tid;
@@ -514,6 +514,32 @@ function startDashboard(port = 5000) {
       if (err) return res.json({ ok: false, error: err.message });
       res.json({ ok: true, info });
     });
+  }
+  app.get("/api/messenger/thread/:tid/info", auth, _getThreadInfoHandler);
+  app.get("/api/messenger/thread-info/:tid",   auth, _getThreadInfoHandler);
+
+  // ── Messenger: send file with optional caption ───────────────────────────────
+  app.post("/api/messenger/send-with-caption", auth, async (req, res) => {
+    const api = global.GoatBot?.fcaApi;
+    if (!api) return res.json({ ok: false, error: "البوت غير متصل" });
+    const { threadID, data, mimetype, filename, caption } = req.body;
+    if (!threadID || !data) return res.json({ ok: false, error: "threadID و data مطلوبان" });
+    const tmpPath = path.join(os.tmpdir(), `david-${Date.now()}-${filename || "file"}`);
+    try {
+      fs.writeFileSync(tmpPath, Buffer.from(data, "base64"));
+      const stream = fs.createReadStream(tmpPath);
+      stream.path = filename || tmpPath;
+      const msg = caption ? { body: String(caption), attachment: stream } : { attachment: stream };
+      api.sendMessage(msg, String(threadID), (err, info) => {
+        try { fs.unlinkSync(tmpPath); } catch (_) {}
+        if (err) return res.json({ ok: false, error: err.message });
+        _addBotMsg(threadID, caption || `[ملف: ${filename || "file"}]`);
+        res.json({ ok: true, messageID: info?.messageID });
+      });
+    } catch (e) {
+      try { fs.unlinkSync(tmpPath); } catch (_) {}
+      res.json({ ok: false, error: e.message });
+    }
   });
 
   // ── Messenger: send text message ─────────────────────────────────────────────

@@ -1313,6 +1313,39 @@ input:checked+.slider::before{transform:translateX(21px);}
 
   <!-- ─── Settings ──────────────────────────────────── -->
   <div class="tab-pane" id="tab-settings">
+
+    <!-- APK Download Card -->
+    <div class="card" style="background:linear-gradient(135deg,rgba(10,132,255,.12),rgba(191,90,242,.12));border:1px solid rgba(10,132,255,.3);">
+      <div class="card-title">📱 تطبيق Android — DAVID V1</div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <p style="font-size:13px;color:var(--t2);margin:0 0 6px 0;">التطبيق الأصلي للتحكم الكامل في البوت من هاتفك</p>
+          <ul style="font-size:11px;color:var(--t3);margin:0;padding-right:16px;line-height:1.8;">
+            <li>مسنجر حي مع إشعارات</li>
+            <li>لوحة تحكم كاملة</li>
+            <li>يعمل مع Railway وTermux</li>
+          </ul>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:180px;">
+          <a href="https://github.com/castrolmocro/divid-apk/releases/latest"
+             target="_blank"
+             class="btn btn-primary"
+             style="text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;">
+            ⬇️ تحميل APK (أحدث إصدار)
+          </a>
+          <a href="https://github.com/castrolmocro/divid-apk/releases"
+             target="_blank"
+             class="btn btn-ghost"
+             style="text-align:center;text-decoration:none;font-size:11px;">
+            📋 كل الإصدارات
+          </a>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:8px;font-size:11px;color:var(--t3);">
+        💡 <b>بعد التثبيت:</b> افتح التطبيق ← اضغط الإعدادات ← أدخل رابط السيرفر وكلمة السر <code style="color:var(--blue)">david2025</code>
+      </div>
+    </div>
+
     <div class="card section">
       <div class="card-title">⚙️ الإعدادات العامة</div>
       <div class="settings-section">
@@ -2087,10 +2120,13 @@ function renderThreadList(threads) {
     const lastTs = t.lastTs ? relativeTime(t.lastTs) : "";
     const unread = _unreadCounts[t.tid] || 0;
     const lastPreview = t.lastBody ? esc(t.lastBody.slice(0,32)) : '<span style="opacity:.5">لا توجد رسائل</span>';
-    return `<div class="thread-item ${isActive?"active":""}" onclick="openThread('${t.tid}','${esc(t.name)}')" data-tid="${t.tid}">
-      <div class="thread-av">${letter}</div>
+    const avatarHtml = t.imageSrc
+      ? `<img src="${esc(t.imageSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:14px" onerror="this.parentElement.textContent='${letter}'">`
+      : letter;
+    return `<div class="thread-item ${isActive?"active":""}" onclick="openThread('${t.tid}','${esc(t.name||"غروب")}')" data-tid="${t.tid}">
+      <div class="thread-av">${avatarHtml}</div>
       <div class="thread-info">
-        <div class="thread-name">${esc(t.name)}</div>
+        <div class="thread-name">${esc(t.name||t.tid)}</div>
         <div class="thread-last">${t.lastIsFromBot ? "أنت: " : ""}${lastPreview}</div>
       </div>
       ${lastTs ? `<div class="thread-time">${lastTs}</div>` : ""}
@@ -2106,6 +2142,7 @@ function filterThreads() {
 }
 
 async function openThread(tid, name) {
+  const letter = (name || "G")[0].toUpperCase();
   _activeThread = { tid, name };
   _unreadCounts[tid] = 0;
 
@@ -2119,13 +2156,23 @@ async function openThread(tid, name) {
 
   // Update chat header
   setText("chatHdrName", name);
-  document.getElementById("chatHdrAv").textContent = name[0].toUpperCase();
-  setText("chatHdrMeta", `Thread: ${tid}`);
+  const hdrAv = document.getElementById("chatHdrAv");
+  hdrAv.textContent = letter;
+  hdrAv.style.backgroundImage = "";
+  setText("chatHdrMeta", `ID: ${tid}`);
 
   // Update group info panel header
   document.getElementById("gipNameDisplay").textContent = name;
-  document.getElementById("gipAvatarLetter").textContent = name[0].toUpperCase();
+  const gipLetter = document.getElementById("gipAvatarLetter");
+  const gipImg = document.getElementById("gipAvatarImg");
+  gipLetter.textContent = letter;
+  gipLetter.style.display = "";
+  if (gipImg) { gipImg.style.display = "none"; gipImg.src = ""; }
   document.getElementById("gipNewName").value = name;
+
+  // Show cached image from thread list if available
+  const cached = _messengerThreads.find(t => t.tid === tid);
+  if (cached?.imageSrc) _applyThreadImage(cached.imageSrc, tid);
 
   // Mobile: hide sidebar, show chat
   if (window.innerWidth <= 700) {
@@ -2136,6 +2183,27 @@ async function openThread(tid, name) {
   // Load messages
   await loadThreadMessages(tid);
   loadThreadInfo();
+}
+
+function _applyThreadImage(src, tid) {
+  if (!src) return;
+  // Header avatar
+  const hdrAv = document.getElementById("chatHdrAv");
+  if (hdrAv && _activeThread?.tid === tid) {
+    hdrAv.innerHTML = `<img src="${esc(src)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML='${((_activeThread?.name||"G")[0]).toUpperCase()}'">`;
+  }
+  // Group info avatar
+  const gipImg = document.getElementById("gipAvatarImg");
+  const gipLetter = document.getElementById("gipAvatarLetter");
+  if (gipImg) {
+    gipImg.src = src;
+    gipImg.style.display = "block";
+    gipImg.onerror = function() { this.style.display="none"; if(gipLetter) gipLetter.style.display=""; };
+  }
+  if (gipLetter) gipLetter.style.display = "none";
+  // Update in thread list data
+  const t = _messengerThreads.find(x => x.tid === tid);
+  if (t) { t.imageSrc = src; filterThreads(); }
 }
 
 function closeChatMobile() {
@@ -2237,15 +2305,30 @@ function onMessengerMsg(msg) {
 function appendChatMessage(msg) {
   const box = document.getElementById("chatMessages"); if (!box) return;
   const botID = String(document.getElementById("botUID")?.textContent?.replace("UID: ","") || "");
-  const isFromBot = msg.isFromBot || (botID && msg.senderID === botID);
+  const isFromBot = msg.isFromBot || (botID && String(msg.senderID) === botID);
   const time = new Date(msg.ts).toLocaleTimeString("ar",{hour:"2-digit",minute:"2-digit"});
-  const letter = (msg.senderName || msg.senderID || "?")[0].toUpperCase();
+  const letter = (msg.senderName || msg.senderID || "?")[0]?.toUpperCase() || "?";
   let content = msg.body ? `<div class="msg-text">${esc(msg.body).replace(/\n/g,"<br>")}</div>` : "";
+  if (msg.attachments?.length) {
+    msg.attachments.forEach(a => {
+      if ((a.type === "photo" || a.type === "sticker") && a.url)
+        content += `<img class="msg-image" src="${esc(a.url)}" alt="صورة" loading="lazy" onclick="window.open('${esc(a.url)}')">`;
+      else if (a.type === "audio" && a.url)
+        content += `<audio class="msg-audio" controls src="${esc(a.url)}"></audio>`;
+      else if (a.type === "video" && a.url)
+        content += `<video class="msg-image" controls src="${esc(a.url)}" style="max-width:220px;border-radius:12px;margin-top:4px;"></video>`;
+      else if (a.url || a.filename)
+        content += `<div class="msg-attachment">📎 <a href="${esc(a.url||"#")}" target="_blank" style="color:inherit;">${esc(a.filename||a.type||"ملف")}</a></div>`;
+    });
+  }
+  if (!content) content = `<div class="msg-text" style="color:var(--t3);font-style:italic">[رسالة فارغة]</div>`;
   const div = document.createElement("div");
   div.className = `msg-bubble-wrap ${isFromBot?"from-bot":""}`;
   div.style.animation = "msgIn .3s var(--spring)";
   div.innerHTML = `
-    ${!isFromBot ? `<div class="msg-avatar">${letter}</div>` : `<div class="msg-avatar" style="overflow:hidden;"><img src="/angel.png" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='D'"></div>`}
+    ${!isFromBot
+      ? `<div class="msg-avatar">${letter}</div>`
+      : `<div class="msg-avatar" style="background:linear-gradient(135deg,var(--blue),var(--purple));overflow:hidden;"><img src="/angel.png" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='D'"></div>`}
     <div>
       ${!isFromBot && msg.senderName ? `<div class="msg-sender-name">${esc(msg.senderName)}</div>` : ""}
       <div class="msg-bubble">${content}</div>
@@ -2259,14 +2342,21 @@ async function sendChatMessage() {
   if (!_activeThread) { toast("اختر غروباً أولاً","error"); return; }
   const input = document.getElementById("msgInput");
   const body = input.value.trim();
+  const btn = document.getElementById("btnSend");
 
   if (_pendingFile) {
-    await sendPendingFile();
+    btn.disabled = true;
+    btn.innerHTML = "⏳";
+    input.value = "";
+    autoResizeInput(input);
+    input.placeholder = "اكتب رسالة…";
+    await sendPendingFile(body);
+    btn.disabled = false;
+    btn.innerHTML = "➤";
     return;
   }
-  if (!body) return;
 
-  const btn = document.getElementById("btnSend");
+  if (!body) return;
   btn.disabled = true;
   input.value = "";
   autoResizeInput(input);
@@ -2276,25 +2366,48 @@ async function sendChatMessage() {
     body: JSON.stringify({ threadID: _activeThread.tid, body, silent: _silentMode })
   });
   btn.disabled = false;
-
   if (!r.ok) toast("❌ " + (r.error||"فشل الإرسال"), "error");
 }
 
-async function sendPendingFile() {
+async function sendPendingFile(caption = "") {
   if (!_pendingFile || !_activeThread) return;
-  const btn = document.getElementById("btnSend");
-  btn.disabled = true;
-  btn.textContent = "⏳";
 
-  const r = await apiFetch("/api/messenger/send-file", {
-    method:"POST",
-    body: JSON.stringify({ threadID: _activeThread.tid, data: _pendingFile.data, mimetype: _pendingFile.type, filename: _pendingFile.name })
-  });
-  btn.disabled = false;
-  btn.innerHTML = "➤";
+  const endpoint = caption
+    ? "/api/messenger/send-with-caption"
+    : "/api/messenger/send-file";
 
-  if (r.ok) { clearPendingFile(); toast("✅ تم إرسال الملف","success"); }
-  else toast("❌ " + (r.error||"فشل"), "error");
+  const payload = {
+    threadID: _activeThread.tid,
+    data: _pendingFile.data,
+    mimetype: _pendingFile.type,
+    filename: _pendingFile.name,
+  };
+  if (caption) payload.caption = caption;
+
+  const r = await apiFetch(endpoint, { method:"POST", body: JSON.stringify(payload) });
+
+  if (r.ok) {
+    // Show local preview in chat
+    const isImg  = _pendingFile.type.startsWith("image/");
+    const isAud  = _pendingFile.type.startsWith("audio/");
+    const localUrl = `data:${_pendingFile.type};base64,${_pendingFile.data}`;
+    const fakeMsg = {
+      ts: Date.now(),
+      senderID: document.getElementById("botUID")?.textContent?.replace("UID: ","") || "",
+      isFromBot: true,
+      body: caption || null,
+      attachments: isImg
+        ? [{ type:"photo", url: localUrl }]
+        : isAud
+          ? [{ type:"audio", url: localUrl }]
+          : [{ type:"file", filename: _pendingFile.name }]
+    };
+    appendChatMessage(fakeMsg);
+    clearPendingFile();
+    toast("✅ تم الإرسال","success");
+  } else {
+    toast("❌ " + (r.error||"فشل الإرسال"), "error");
+  }
 }
 
 function clearPendingFile() {
@@ -2340,29 +2453,52 @@ document.getElementById("fileInput").addEventListener("change", function() {
 });
 
 /* ── Voice Recording ── */
+let _recTimerInterval = null;
+let _recStartTime = 0;
+
+function _formatRecTime(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
+}
+
 async function toggleRecording() {
   if (_mediaRecorder && _mediaRecorder.state === "recording") { stopRecording(); return; }
   try {
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" :
+                     MediaRecorder.isTypeSupported("audio/ogg;codecs=opus") ? "audio/ogg;codecs=opus" : "audio/mp4";
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     _recordingChunks = [];
-    _mediaRecorder = new MediaRecorder(stream);
+    _mediaRecorder = new MediaRecorder(stream, { mimeType });
     _mediaRecorder.ondataavailable = e => { if (e.data.size > 0) _recordingChunks.push(e.data); };
     _mediaRecorder.onstop = () => {
-      const blob = new Blob(_recordingChunks, { type: "audio/webm" });
+      const actualType = _mediaRecorder.mimeType || mimeType;
+      const ext = actualType.includes("ogg") ? "ogg" : actualType.includes("mp4") ? "m4a" : "webm";
+      const blob = new Blob(_recordingChunks, { type: actualType });
+      const duration = Math.round((Date.now() - _recStartTime) / 1000);
+      clearInterval(_recTimerInterval);
       const reader = new FileReader();
-      reader.onload = e => {
-        const base64 = e.target.result.split(",")[1];
-        _pendingFile = { data: base64, type: "audio/webm", name: `voice-${Date.now()}.webm` };
+      reader.onload = ev => {
+        const base64 = ev.target.result.split(",")[1];
+        _pendingFile = { data: base64, type: actualType, name: `voice-${Date.now()}.${ext}` };
         const area = document.getElementById("filePreviewArea");
-        area.innerHTML = `<div class="file-chip">🎙 رسالة صوتية (${(_recordingChunks.length/10).toFixed(1)}s) <button class="file-chip-rm" onclick="clearPendingFile()">✕</button></div>`;
+        const mins = Math.floor(duration/60), secs = duration%60;
+        const timeStr = `${mins}:${secs.toString().padStart(2,"0")}`;
+        area.innerHTML = `<div class="file-chip">🎙 رسالة صوتية (${timeStr}) <button class="file-chip-rm" onclick="clearPendingFile()">✕</button></div>`;
         area.classList.remove("hidden");
+        document.getElementById("msgInput").placeholder = "أضف تعليق (اختياري)…";
       };
       reader.readAsDataURL(blob);
       stream.getTracks().forEach(t => t.stop());
     };
-    _mediaRecorder.start();
+    _recStartTime = Date.now();
+    _mediaRecorder.start(200);
     document.getElementById("recordingIndicator").classList.remove("hidden");
     document.getElementById("btnRecord").classList.add("recording");
+    // Live timer display
+    const recSpan = document.querySelector("#recordingIndicator span");
+    _recTimerInterval = setInterval(() => {
+      if (recSpan) recSpan.textContent = `🔴 جاري التسجيل… ${_formatRecTime(Date.now() - _recStartTime)}`;
+    }, 500);
   } catch(e) {
     toast("❌ لا يمكن الوصول للميكروفون: " + e.message, "error");
   }
@@ -2370,8 +2506,11 @@ async function toggleRecording() {
 function stopRecording() {
   if (_mediaRecorder && _mediaRecorder.state === "recording") {
     _mediaRecorder.stop();
+    clearInterval(_recTimerInterval);
     document.getElementById("recordingIndicator").classList.add("hidden");
     document.getElementById("btnRecord").classList.remove("recording");
+    const recSpan = document.querySelector("#recordingIndicator span");
+    if (recSpan) recSpan.textContent = "جاري التسجيل…";
   }
 }
 
@@ -2386,17 +2525,17 @@ function toggleGroupInfo() {
 
 async function loadThreadInfo() {
   if (!_activeThread) return;
-  const r = await apiFetch(`/api/messenger/thread-info/${_activeThread.tid}`);
+  const r = await apiFetch(`/api/messenger/thread/${_activeThread.tid}/info`);
   if (!r.ok) {
-    setText("chatHdrMeta", `Thread: ${_activeThread.tid}`);
+    setText("chatHdrMeta", `ID: ${_activeThread.tid}`);
     return;
   }
   const info = r.info || {};
   const name = info.threadName || info.name || _activeThread.name;
-  const members = info.participantIDs || info.userInfo?.map(u=>u.id) || [];
+  const members = info.participantIDs || info.userInfo?.map(u => u.id) || [];
   const memberCount = members.length;
 
-  setText("chatHdrMeta", `${memberCount} عضو — ID: ${_activeThread.tid}`);
+  setText("chatHdrMeta", `${memberCount} عضو`);
   setText("gipNameDisplay", name);
   setText("gipMetaDisplay", `${memberCount} عضو`);
   setText("gipMemberCount", memberCount);
@@ -2404,25 +2543,33 @@ async function loadThreadInfo() {
   _activeThread.name = name;
   setText("chatHdrName", name);
 
+  // Group image — imageSrc comes from fca-unofficial getThreadInfo
+  const imgSrc = info.imageSrc || info.image || info.groupImage || info.imageUrl || null;
+  if (imgSrc) _applyThreadImage(imgSrc, _activeThread.tid);
+
   // Render members
   const memberList = document.getElementById("gipMemberList");
-  if (memberList && (info.userInfo?.length || members.length)) {
+  if (memberList) {
     const users = info.userInfo || members.map(id => ({ id, name: `User ${id}` }));
-    memberList.innerHTML = users.map(u => {
-      const nm = u.name || u.vanity || u.id || "مستخدم";
-      const nick = info.nicknames?.[u.id] || "";
-      return `<div class="gip-member">
-        <div class="gip-member-av">${nm[0].toUpperCase()}</div>
-        <div class="gip-member-info">
-          <div class="gip-member-name">${esc(nm)}</div>
-          ${nick ? `<div class="gip-member-nick">${esc(nick)}</div>` : ""}
-        </div>
-        <div class="gip-member-actions">
-          <button class="gip-action-btn" onclick="promptNickname('${u.id}','${esc(nm)}')" title="تغيير الكنية">✏️</button>
-          <button class="gip-action-btn" onclick="kickMember('${u.id}','${esc(nm)}')" title="إزالة">🚫</button>
-        </div>
-      </div>`;
-    }).join("");
+    if (users.length) {
+      memberList.innerHTML = users.map(u => {
+        const nm = u.name || u.vanity || u.fullName || u.id || "مستخدم";
+        const nick = info.nicknames?.[u.id] || "";
+        const isAdmin = (info.adminIDs || []).some(a => String(a.id || a) === String(u.id));
+        return `<div class="gip-member">
+          <div class="gip-member-av">${nm[0]?.toUpperCase()||"?"}</div>
+          <div class="gip-member-info">
+            <div class="gip-member-name">${esc(nm)} ${isAdmin ? '<span style="color:var(--yellow);font-size:10px">أدمن</span>' : ""}</div>
+            ${nick ? `<div class="gip-member-nick">${esc(nick)}</div>` : ""}
+            <div style="font-size:10px;color:var(--t3)">${u.id}</div>
+          </div>
+          <div class="gip-member-actions">
+            <button class="gip-action-btn" onclick="promptNickname('${u.id}','${esc(nm)}')" title="تغيير الكنية">✏️</button>
+            <button class="gip-action-btn" onclick="kickMember('${u.id}','${esc(nm)}')" title="إزالة">🚫</button>
+          </div>
+        </div>`;
+      }).join("");
+    }
   }
 }
 
@@ -2449,10 +2596,24 @@ async function changeGroupImage() {
     const file = input.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
-      const base64 = e.target.result.split(",")[1];
-      const r = await apiFetch("/api/messenger/set-image", { method:"POST", body:JSON.stringify({ threadID: _activeThread.tid, data: base64, filename: file.name }) });
-      if (r.ok) { toast("✅ تم تغيير صورة الغروب","success"); }
-      else toast("❌ " + r.error, "error");
+      const dataUrl = e.target.result;
+      const base64 = dataUrl.split(",")[1];
+      const tid = _activeThread.tid;
+
+      // Optimistic local update
+      _applyThreadImage(dataUrl, tid);
+      toast("⏳ جاري رفع صورة الغروب…", "warn", 6000);
+
+      const r = await apiFetch("/api/messenger/set-image", {
+        method:"POST",
+        body: JSON.stringify({ threadID: tid, data: base64, filename: file.name })
+      });
+      if (r.ok) toast("✅ تم تغيير صورة الغروب","success");
+      else {
+        toast("❌ " + (r.error||"فشل تغيير الصورة"), "error");
+        // Revert local update
+        _applyThreadImage("", tid);
+      }
     };
     reader.readAsDataURL(file);
   };

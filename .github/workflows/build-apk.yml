@@ -18,74 +18,101 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools-version: '34.0.0'
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install npm dependencies
         run: npm install
 
-      - name: Build Android APK
-        working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx1g"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
 
-      - name: Sign APK (debug key)
+      - name: Build Debug APK
         working-directory: android
-        run: |
-          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
-            $ANDROID_HOME/build-tools/34.0.0/zipalign -v 4 \
-              app/build/outputs/apk/release/app-release-unsigned.apk \
-              app/build/outputs/apk/release/david-v1.apk || true
-            $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
-              --ks ~/.android/debug.keystore \
-              --ks-pass pass:android \
-              --out app/build/outputs/apk/release/david-v1-signed.apk \
-              app/build/outputs/apk/release/david-v1.apk || cp \
-              app/build/outputs/apk/release/app-release-unsigned.apk \
-              app/build/outputs/apk/release/david-v1-signed.apk
-          fi
-          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/david-v1-debug.apk
-          fi
+        run: gradle assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx1g" -Pandroid.useAndroidX=true
 
-      - name: Upload Release APK
+      - name: Build Release APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx1g" -Pandroid.useAndroidX=true
+        continue-on-error: true
+
+      - name: List built APKs
+        run: |
+          find android/app/build/outputs/apk -name "*.apk" 2>/dev/null || echo "No APKs found"
+          ls -la android/app/build/outputs/apk/debug/ 2>/dev/null || true
+          ls -la android/app/build/outputs/apk/release/ 2>/dev/null || true
+
+      - name: Rename APKs
+        run: |
+          mkdir -p dist
+          find android/app/build/outputs/apk/debug -name "*.apk" -exec cp {} dist/david-v1-debug.apk \; 2>/dev/null || true
+          find android/app/build/outputs/apk/release -name "*.apk" -exec cp {} dist/david-v1-release.apk \; 2>/dev/null || true
+          ls -la dist/
+
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: david-v1-apk
-          path: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/apk/debug/*.apk
+          name: david-v1-debug-apk
+          path: dist/david-v1-debug.apk
           retention-days: 30
+          if-no-files-found: warn
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           tag_name: v${{ github.run_number }}
-          name: "DAVID V1 APK v${{ github.run_number }}"
+          name: "📱 DAVID V1 — Build #${{ github.run_number }}"
+          draft: false
+          prerelease: false
           body: |
-            ## DAVID V1 — DjamelBot Engine APK
-            
-            تطبيق Android للتحكم في بوت فيسبوك ماسنجر
-            
-            ### التثبيت:
-            1. حمّل الـ APK
-            2. فعّل "مصادر غير معروفة" في إعدادات الهاتف
-            3. ثبّت التطبيق
-            4. أدخل رابط السيرفر (Railway أو localhost)
-            
-            ### الميزات:
-            - لوحة تحكم كاملة
-            - مسنجر حي
-            - إدارة الأوامر
-            - دعم Railway + الهاتف كسيرفر
+            ## 📱 DAVID V1 Bot App — Android APK
+
+            تطبيق Android للتحكم الكامل في بوت DAVID V1
+
+            ---
+
+            ### 📥 تعليمات التثبيت:
+            1. **حمّل** ملف `david-v1-debug.apk`
+            2. على الهاتف: **الإعدادات → الأمان → مصادر غير معروفة** (فعّل)
+            3. افتح ملف APK وثبّت
+            4. أدخل رابط السيرفر في الإعدادات
+
+            ---
+
+            ### 🔌 الاتصال:
+            | الخيار | الرابط |
+            |--------|--------|
+            | Railway | رابط مشروعك على Railway |
+            | هاتف محلي (Termux) | `http://localhost:5000` |
+            | شبكة محلية | `http://192.168.x.x:5000` |
+
+            ---
+
+            ### ✨ الميزات:
+            - لوحة تحكم كاملة 📊
+            - مسنجر حي 💬
+            - إدارة الأوامر 📦
+            - ذكاء اصطناعي Claude 🤖
+            - متصفح الملفات 📁
+            - يعمل مع Railway + الهاتف كسيرفر
           files: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/apk/debug/*.apk
+            dist/david-v1-debug.apk
+            dist/david-v1-release.apk
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
