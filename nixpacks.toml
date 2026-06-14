@@ -3,7 +3,8 @@ nixPkgs = ["nodejs_20", "python3", "pkg-config", "pixman", "cairo", "pango", "li
 
 [phases.install]
 cmds = [
-  "npm install --legacy-peer-deps --no-audit"
+  "npm install --legacy-peer-deps --no-audit",
+  "node scripts/fix-esm.js"
 ]
 
 [start]
