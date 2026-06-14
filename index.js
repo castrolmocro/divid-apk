@@ -32,7 +32,12 @@ function start() {
   restarts++;
   log(`تشغيل DAVID V1... (محاولة ${restarts})`);
 
-  child = spawn(process.execPath, [path.join(__dirname, "David.js")], {
+  child = spawn(process.execPath, [
+    "--max-old-space-size=400",
+    "--gc-interval=100",
+    "--optimize-for-size",
+    path.join(__dirname, "David.js"),
+  ], {
     stdio: "inherit",
     env:   { ...process.env },
   });

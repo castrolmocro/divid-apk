@@ -627,6 +627,251 @@ function startDashboard(port = 5000) {
     });
   });
 
+  // ── File Browser ─────────────────────────────────────────────────────────────
+  const ALLOWED_EXTS = new Set([".js",".json",".txt",".md",".html",".css",".env",".toml",".yml",".yaml"]);
+  const SKIP_DIRS    = new Set(["node_modules",".git","android","mobile",".cache","dist","build"]);
+
+  function buildTree(dir, maxDepth = 4, depth = 0) {
+    if (depth > maxDepth) return [];
+    const items = [];
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const e of entries) {
+        if (e.name.startsWith(".") && depth === 0 && e.name !== ".github") continue;
+        if (e.name.startsWith(".") && e.name !== ".github") continue;
+        if (e.isDirectory()) {
+          if (SKIP_DIRS.has(e.name)) continue;
+          const children = buildTree(path.join(dir, e.name), maxDepth, depth + 1);
+          items.push({ name: e.name, type: "dir", path: path.relative(ROOT, path.join(dir, e.name)), children });
+        } else {
+          const ext = path.extname(e.name).toLowerCase();
+          if (!ALLOWED_EXTS.has(ext)) continue;
+          items.push({ name: e.name, type: "file", path: path.relative(ROOT, path.join(dir, e.name)), ext });
+        }
+      }
+    } catch (_) {}
+    return items.sort((a,b) => {
+      if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  app.get("/api/files/tree", auth, (_, res) => {
+    try {
+      const tree = buildTree(ROOT);
+      res.json({ ok: true, tree });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.get("/api/files/read", auth, (req, res) => {
+    try {
+      const rel = req.query.path || "";
+      if (!rel || rel.includes("..")) return res.json({ ok: false, error: "مسار غير صالح" });
+      const full = path.join(ROOT, rel);
+      if (!full.startsWith(ROOT)) return res.json({ ok: false, error: "مسار خارج النطاق" });
+      const ext = path.extname(full).toLowerCase();
+      if (!ALLOWED_EXTS.has(ext)) return res.json({ ok: false, error: "نوع ملف غير مسموح" });
+      if (!fs.existsSync(full)) return res.json({ ok: false, error: "الملف غير موجود" });
+      const stat = fs.statSync(full);
+      if (stat.size > 512 * 1024) return res.json({ ok: false, error: "الملف كبير جداً (>512KB)" });
+      const content = fs.readFileSync(full, "utf8");
+      res.json({ ok: true, content, path: rel, size: stat.size });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post("/api/files/write", auth, (req, res) => {
+    try {
+      const { path: rel, content } = req.body;
+      if (!rel || rel.includes("..")) return res.json({ ok: false, error: "مسار غير صالح" });
+      const full = path.join(ROOT, rel);
+      if (!full.startsWith(ROOT)) return res.json({ ok: false, error: "مسار خارج النطاق" });
+      const ext = path.extname(full).toLowerCase();
+      if (!ALLOWED_EXTS.has(ext)) return res.json({ ok: false, error: "نوع ملف غير مسموح" });
+      fs.ensureDirSync(path.dirname(full));
+      fs.writeFileSync(full, content || "", "utf8");
+      // Hot-reload if command file
+      if (full.startsWith(CMDS_DIR) && ext === ".js") {
+        try {
+          const absPath = require.resolve(full);
+          delete require.cache[absPath];
+          const cmd = require(full);
+          if (cmd?.config?.name) {
+            const n = cmd.config.name.toLowerCase();
+            if (global.GoatBot?.commands) {
+              global.GoatBot.commands.set(n, cmd);
+              if (cmd.config.aliases) for (const a of cmd.config.aliases||[]) if (a) global.GoatBot.commands.set(String(a).toLowerCase(), cmd);
+            }
+            if (_io) _io.emit("command-updated", { name: n });
+          }
+        } catch (_) {}
+      }
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post("/api/files/new", auth, (req, res) => {
+    try {
+      const { path: rel, isDir } = req.body;
+      if (!rel || rel.includes("..")) return res.json({ ok: false, error: "مسار غير صالح" });
+      const full = path.join(ROOT, rel);
+      if (!full.startsWith(ROOT)) return res.json({ ok: false, error: "مسار خارج النطاق" });
+      if (isDir) { fs.ensureDirSync(full); }
+      else { fs.ensureDirSync(path.dirname(full)); fs.writeFileSync(full, "", "utf8"); }
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.delete("/api/files/delete", auth, (req, res) => {
+    try {
+      const rel = req.query.path || "";
+      if (!rel || rel.includes("..")) return res.json({ ok: false, error: "مسار غير صالح" });
+      const full = path.join(ROOT, rel);
+      if (!full.startsWith(ROOT)) return res.json({ ok: false, error: "مسار خارج النطاق" });
+      if (!fs.existsSync(full)) return res.json({ ok: false, error: "الملف غير موجود" });
+      fs.removeSync(full);
+      res.json({ ok: true });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  // ── Claude AI — توليد الأوامر ──────────────────────────────────────────────────
+  app.post("/api/ai/generate", auth, async (req, res) => {
+    try {
+      const { description, contextFiles } = req.body;
+      if (!description) return res.json({ ok: false, error: "الوصف مطلوب" });
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.json({ ok: false, error: "ANTHROPIC_API_KEY غير مُعيَّن — أضفه من الإعدادات" });
+
+      const Anthropic = require("@anthropic-ai/sdk");
+      const client = new Anthropic.default({ apiKey });
+
+      // قراءة ملفات السياق
+      let contextContent = "";
+      if (Array.isArray(contextFiles) && contextFiles.length) {
+        for (const rel of contextFiles.slice(0, 5)) {
+          try {
+            const full = path.join(ROOT, rel);
+            if (full.startsWith(ROOT) && fs.existsSync(full)) {
+              const content = fs.readFileSync(full, "utf8");
+              contextContent += `\n\n// === الملف: ${rel} ===\n${content.slice(0, 3000)}`;
+            }
+          } catch (_) {}
+        }
+      }
+
+      // قراءة مثال أمر للسياق
+      const exampleCmd = path.join(CMDS_DIR, "uptime.js");
+      let exampleContent = "";
+      try { exampleContent = fs.readFileSync(exampleCmd, "utf8"); } catch (_) {}
+
+      const systemPrompt = `أنت مطور بوت فيسبوك ماسنجر خبير بـ DAVID V1 Engine. مهمتك كتابة أوامر Node.js للبوت.
+
+بنية الأمر الأساسية:
+\`\`\`js
+"use strict";
+module.exports = {
+  config: {
+    name: "اسم_الأمر",
+    aliases: [],
+    version: "1.0",
+    author: "DJAMEL",
+    countDown: 5,
+    role: 0,  // 0=الجميع 2=أدمن 3=مالك
+    category: "fun",  // fun/management/media/info/utility
+    description: "وصف مختصر",
+    guide: { en: "{pn} [نص]" }
+  },
+  onStart: async function({ api, event, args, message, prefix }) {
+    // الكود هنا
+    // message.reply("رسالة") لإرسال ردّ
+    // api.sendMessage("نص", event.threadID) لإرسال رسالة
+    // message.react("✅", event.messageID) لإضافة ردّ فعل
+  }
+};
+\`\`\`
+
+متغيرات مفيدة في البوت:
+- global.GoatBot.config: إعدادات البوت
+- event.senderID: معرّف المرسل
+- event.threadID: معرّف الغروب
+- event.body: نص الرسالة
+- args: مصفوفة الحجج
+
+مثال أمر حقيقي:
+${exampleContent}
+
+${contextContent ? `سياق إضافي:${contextContent}` : ""}`;
+
+      const msg = await client.messages.create({
+        model: "claude-opus-4-5",
+        max_tokens: 2000,
+        messages: [
+          { role: "user", content: `اكتب أمر DAVID V1 بالمواصفات التالية:\n\n${description}\n\nاكتب فقط كود JavaScript بدون أي شرح. ابدأ بـ "use strict";` }
+        ],
+        system: systemPrompt,
+      });
+
+      let code = msg.content[0]?.text || "";
+      // استخراج الكود من markdown إذا كان مُغلَّفاً
+      const match = code.match(/```(?:javascript|js)?\n?([\s\S]+?)```/);
+      if (match) code = match[1].trim();
+
+      res.json({ ok: true, code });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post("/api/ai/chat", auth, async (req, res) => {
+    try {
+      const { message: userMsg, history } = req.body;
+      if (!userMsg) return res.json({ ok: false, error: "الرسالة مطلوبة" });
+
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.json({ ok: false, error: "ANTHROPIC_API_KEY غير مُعيَّن" });
+
+      const Anthropic = require("@anthropic-ai/sdk");
+      const client = new Anthropic.default({ apiKey });
+
+      const msgs = [];
+      if (Array.isArray(history)) {
+        for (const h of history.slice(-10)) {
+          if (h.role && h.content) msgs.push({ role: h.role, content: h.content });
+        }
+      }
+      msgs.push({ role: "user", content: userMsg });
+
+      const resp = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1000,
+        messages: msgs,
+        system: "أنت مساعد ذكي خبير في بوتات فيسبوك ماسنجر ونظام DAVID V1. أجب باختصار ووضوح باللغة العربية.",
+      });
+
+      res.json({ ok: true, reply: resp.content[0]?.text || "" });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
+  app.post("/api/ai/save-command", auth, (req, res) => {
+    try {
+      const { name, code } = req.body;
+      if (!name || !code) return res.json({ ok: false, error: "name و code مطلوبان" });
+      const safeName = name.toLowerCase().replace(/[^a-z0-9_-]/g,"");
+      if (!safeName) return res.json({ ok: false, error: "اسم غير صالح" });
+      const file = path.join(CMDS_DIR, `${safeName}.js`);
+      fs.writeFileSync(file, code, "utf8");
+      try {
+        delete require.cache[require.resolve(file)];
+        const cmd = require(file);
+        if (cmd?.config?.name && global.GoatBot?.commands) {
+          const n = cmd.config.name.toLowerCase();
+          global.GoatBot.commands.set(n, cmd);
+          if (cmd.config.aliases) for (const a of cmd.config.aliases||[]) if (a) global.GoatBot.commands.set(String(a).toLowerCase(), cmd);
+          if (_io) _io.emit("command-updated", { name: n });
+        }
+      } catch (_) {}
+      res.json({ ok: true, message: `✅ تم حفظ الأمر /${safeName}` });
+    } catch (e) { res.json({ ok: false, error: e.message }); }
+  });
+
   // ── Catch-all SPA ─────────────────────────────────────────────────────────────
   app.get("*", (_, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 

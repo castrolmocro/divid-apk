@@ -1,0 +1,91 @@
+name: Build DAVID V1 APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Android APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx1g"
+
+      - name: Sign APK (debug key)
+        working-directory: android
+        run: |
+          if [ -f app/build/outputs/apk/release/app-release-unsigned.apk ]; then
+            $ANDROID_HOME/build-tools/34.0.0/zipalign -v 4 \
+              app/build/outputs/apk/release/app-release-unsigned.apk \
+              app/build/outputs/apk/release/david-v1.apk || true
+            $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+              --ks ~/.android/debug.keystore \
+              --ks-pass pass:android \
+              --out app/build/outputs/apk/release/david-v1-signed.apk \
+              app/build/outputs/apk/release/david-v1.apk || cp \
+              app/build/outputs/apk/release/app-release-unsigned.apk \
+              app/build/outputs/apk/release/david-v1-signed.apk
+          fi
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/david-v1-debug.apk
+          fi
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: david-v1-apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "DAVID V1 APK v${{ github.run_number }}"
+          body: |
+            ## DAVID V1 — DjamelBot Engine APK
+            
+            تطبيق Android للتحكم في بوت فيسبوك ماسنجر
+            
+            ### التثبيت:
+            1. حمّل الـ APK
+            2. فعّل "مصادر غير معروفة" في إعدادات الهاتف
+            3. ثبّت التطبيق
+            4. أدخل رابط السيرفر (Railway أو localhost)
+            
+            ### الميزات:
+            - لوحة تحكم كاملة
+            - مسنجر حي
+            - إدارة الأوامر
+            - دعم Railway + الهاتف كسيرفر
+          files: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

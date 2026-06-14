@@ -1,12 +1,14 @@
 /**
- * DAVID V1 — /groupimg — تغيير وقفل صورة الغروب (مثل WHITE-V3)
- * Copyright © 2025 DJAMEL
+ * DAVID V1 — /groupimg — تغيير وقفل صورة الغروب
+ * Copyright © 2025 DJAMEL — v3.1 Fixed
  */
 "use strict";
 const axios = require("axios");
 const fs    = require("fs-extra");
 const path  = require("path");
 const os    = require("os");
+const http  = require("http");
+const https = require("https");
 
 const CACHE = path.join(os.tmpdir(), "david_groupimg");
 fs.ensureDirSync(CACHE);
@@ -31,17 +33,50 @@ async function isGroupAdmin(api, uid, tid) {
 
 const locks = new Map();
 
+async function downloadImage(url) {
+  const tmpFile = path.join(CACHE, `tmp_${Date.now()}.jpg`);
+  return new Promise((resolve, reject) => {
+    const proto = url.startsWith("https") ? https : http;
+    const req = proto.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
+        "Accept": "image/*,*/*;q=0.8",
+      },
+      timeout: 25000,
+    }, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        return downloadImage(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
+      const dest = fs.createWriteStream(tmpFile);
+      res.pipe(dest);
+      dest.on("finish", () => resolve(tmpFile));
+      dest.on("error", reject);
+    });
+    req.on("error", reject);
+    req.on("timeout", () => { req.abort(); reject(new Error("timeout")); });
+  });
+}
+
 async function applyImage(api, tid) {
   const lf = lockFile(tid);
   if (!fs.existsSync(lf)) return;
-  try { await api.changeGroupImage(fs.createReadStream(lf), tid); } catch (_) {}
+  try {
+    await new Promise((resolve, reject) => {
+      api.changeGroupImage(fs.createReadStream(lf), tid, (err) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+  } catch (e) {
+    if (global.log) global.log.warn("GROUPIMG", `فشل إعادة تطبيق الصورة: ${e.message}`);
+  }
 }
 
 module.exports = {
   config: {
     name: "groupimg",
     aliases: ["gcimg", "صورة", "img"],
-    version: "3.0",
+    version: "3.1",
     author: "DJAMEL",
     countDown: 5,
     role: 2,
@@ -74,10 +109,20 @@ module.exports = {
     }
 
     let imageUrl = null;
-    const attach = event.messageReply?.attachments?.[0] || event.attachments?.[0];
-    if (attach?.type === "photo") {
-      imageUrl = attach.url || attach.previewUrl || attach.thumbnailUrl;
+
+    // Check reply attachment
+    const replyAttach = event.messageReply?.attachments?.[0];
+    if (replyAttach?.type === "photo") {
+      imageUrl = replyAttach.url || replyAttach.previewUrl || replyAttach.thumbnailUrl;
     }
+
+    // Check direct attachments
+    if (!imageUrl) {
+      const direct = (event.attachments || []).find(a => a.type === "photo");
+      if (direct) imageUrl = direct.url || direct.previewUrl || direct.thumbnailUrl;
+    }
+
+    // Check args for URL
     if (!imageUrl) {
       for (const a of args) {
         if (a && (a.startsWith("http://") || a.startsWith("https://"))) { imageUrl = a; break; }
@@ -96,15 +141,19 @@ module.exports = {
     }
 
     message.react("⏳", event.messageID);
+
     try {
-      const res = await axios.get(imageUrl, {
-        responseType: "arraybuffer",
-        timeout: 20000,
-        headers: { "User-Agent": "Mozilla/5.0" }
-      });
+      const tmpPath = await downloadImage(imageUrl);
       const lf = lockFile(tid);
-      fs.writeFileSync(lf, Buffer.from(res.data));
-      await api.changeGroupImage(fs.createReadStream(lf), tid);
+      fs.copySync(tmpPath, lf);
+      try { fs.removeSync(tmpPath); } catch (_) {}
+
+      await new Promise((resolve, reject) => {
+        api.changeGroupImage(fs.createReadStream(lf), tid, (err) => {
+          if (err) reject(err); else resolve();
+        });
+      });
+
       locks.set(tid, true);
       message.react("✅", event.messageID);
       message.reply(
@@ -114,7 +163,7 @@ module.exports = {
       );
     } catch (e) {
       message.react("❌", event.messageID);
-      message.reply("❌ فشل تغيير الصورة: " + e.message);
+      message.reply("❌ فشل تغيير الصورة: " + (e.message || String(e)));
     }
   },
 
@@ -124,6 +173,6 @@ module.exports = {
     if (locks.get(tid) !== true) return;
     const lf = lockFile(tid);
     if (!fs.existsSync(lf)) return;
-    setTimeout(() => applyImage(api, tid), 2000);
+    setTimeout(() => applyImage(api, tid), 2500);
   }
 };
