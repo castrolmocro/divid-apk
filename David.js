@@ -352,6 +352,9 @@ function watchAccount() {
   fs.ensureDirSync(path.join(ROOT, "data"));
   fs.ensureDirSync(path.join(ROOT, "database/data"));
 
+  // Dashboard أولاً حتى يستجيب healthcheck فوراً
+  await startDashboard(PORT);
+
   // DB
   try { await initDB(); log.ok("DB", "قاعدة البيانات جاهزة ✔"); }
   catch (e) { log.error("DB", e.message); }
@@ -359,9 +362,6 @@ function watchAccount() {
   // Commands
   global.GoatBot.commands = loadCommands(CMDS_DIR);
   global.commands = global.GoatBot.commands;
-
-  // Dashboard (PORT واحد — بدون تعارض)
-  startDashboard(PORT);
 
   // تعريض startBot
   global.startBot = startBot;
