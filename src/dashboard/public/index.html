@@ -424,49 +424,140 @@ textarea.code{min-height:320px;font-family:'SF Mono','Fira Code',Consolas,monosp
   font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;
   padding:0 4px;flex-shrink:0;
 }
-.thread-list-empty{text-align:center;padding:40px 20px;color:var(--t2);font-size:12px;}
-.sidebar-tab-btns{display:flex;gap:4px;}
-.sidebar-tab-btn{
-  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
-  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);
-  color:var(--t2);transition:all .2s var(--spring);font-family:inherit;
-  display:flex;align-items:center;gap:5px;white-space:nowrap;
+.thread-list-empty{text-align:center;padding:40px 20px;color:var(--t2);font-size:12px;line-height:1.6;}
+
+/* ── Sidebar Tab Switcher — iOS 26 pill style ── */
+.sidebar-tab-btns{
+  display:flex;gap:3px;
+  background:rgba(255,255,255,.06);
+  border-radius:22px;padding:3px;
+  border:1px solid rgba(255,255,255,.08);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
 }
-.sidebar-tab-btn.active{background:rgba(191,90,242,.18);color:var(--purple);border-color:rgba(191,90,242,.3);}
-.sidebar-tab-btn:hover:not(.active){background:rgba(255,255,255,.1);color:var(--text);}
+.sidebar-tab-btn{
+  padding:5px 13px;border-radius:18px;font-size:11px;font-weight:700;cursor:pointer;
+  border:none;background:transparent;
+  color:var(--t2);transition:all .25s var(--spring);font-family:inherit;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.sidebar-tab-btn.active{
+  background:rgba(191,90,242,.25);color:var(--purple);
+  box-shadow:0 2px 10px rgba(191,90,242,.3),inset 0 1px 0 rgba(255,255,255,.1);
+}
+.sidebar-tab-btn:hover:not(.active){background:rgba(255,255,255,.08);color:var(--text);}
+
+/* ── Request Badge ── */
 .req-badge{
-  background:var(--orange);color:#000;font-size:9px;font-weight:800;
+  background:linear-gradient(135deg,var(--orange),#FF6B00);
+  color:#fff;font-size:9px;font-weight:800;
   padding:1px 5px;border-radius:8px;min-width:16px;text-align:center;
+  box-shadow:0 1px 6px rgba(255,159,10,.5);
+  animation:pulse 2s infinite;
 }
 .req-badge.hidden{display:none;}
+
+/* ── Request Item — iOS 26 glass card ── */
 .req-item{
-  padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);
-  animation:msgIn .2s var(--spring);
+  margin:6px 8px;
+  background:rgba(255,255,255,.06);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:18px;
+  padding:12px 12px 10px;
+  animation:msgIn .3s var(--spring);
+  position:relative;overflow:hidden;
+  transition:all .2s var(--spring);
 }
+.req-item::before{
+  content:'';position:absolute;inset:0;border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,159,10,.07),transparent 55%);
+  pointer-events:none;
+}
+.req-item:hover{
+  background:rgba(255,255,255,.09);
+  border-color:rgba(255,159,10,.25);
+  transform:translateY(-1px);
+  box-shadow:0 6px 24px rgba(0,0,0,.3);
+}
+
+/* ── Request Avatar ── */
 .req-item-row{display:flex;align-items:flex-start;gap:10px;}
 .req-item-av{
-  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  width:40px;height:40px;border-radius:50%;flex-shrink:0;
   background:linear-gradient(135deg,var(--orange),var(--yellow));
   display:flex;align-items:center;justify-content:center;
-  font-size:15px;font-weight:700;color:#000;
+  font-size:16px;font-weight:700;color:#000;
+  box-shadow:0 3px 12px rgba(255,159,10,.35);
+  border:2px solid rgba(255,159,10,.25);
+  overflow:hidden;
 }
 .req-item-av img{width:100%;height:100%;border-radius:50%;object-fit:cover;}
+
+/* ── Request Info ── */
 .req-item-info{flex:1;min-width:0;}
-.req-item-name{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.req-item-snippet{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.req-item-actions{display:flex;gap:5px;margin-top:7px;}
+.req-item-name{
+  font-size:13px;font-weight:700;margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  letter-spacing:-.1px;
+}
+.req-item-snippet{
+  font-size:11px;color:var(--t2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  line-height:1.4;
+}
+
+/* ── Request Action Buttons — iOS 26 pill style ── */
+.req-item-actions{display:flex;gap:5px;margin-top:9px;}
 .req-accept-btn{
-  padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;
-  background:rgba(50,215,75,.18);color:var(--green);border:1px solid rgba(50,215,75,.3);
-  font-family:inherit;transition:all .15s;
+  flex:1;padding:6px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,rgba(50,215,75,.22),rgba(50,215,75,.14));
+  color:var(--green);border:1px solid rgba(50,215,75,.35);
+  font-family:inherit;transition:all .2s var(--spring);
+  box-shadow:inset 0 1px 0 rgba(50,215,75,.15);
+  -webkit-tap-highlight-color:transparent;
 }
-.req-accept-btn:hover{background:rgba(50,215,75,.3);}
+.req-accept-btn:hover{
+  background:linear-gradient(135deg,rgba(50,215,75,.35),rgba(50,215,75,.22));
+  box-shadow:0 3px 12px rgba(50,215,75,.3);
+  transform:translateY(-1px);
+}
+.req-accept-btn:active{transform:scale(.95);}
+.req-view-btn{
+  flex:1;padding:6px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,rgba(10,132,255,.18),rgba(10,132,255,.1));
+  color:var(--blue);border:1px solid rgba(10,132,255,.3);
+  font-family:inherit;transition:all .2s var(--spring);
+  -webkit-tap-highlight-color:transparent;
+}
+.req-view-btn:hover{
+  background:linear-gradient(135deg,rgba(10,132,255,.28),rgba(10,132,255,.18));
+  box-shadow:0 3px 12px rgba(10,132,255,.25);
+  transform:translateY(-1px);
+}
+.req-view-btn:active{transform:scale(.95);}
 .req-ignore-btn{
-  padding:4px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;
-  background:rgba(255,255,255,.06);color:var(--t2);border:1px solid rgba(255,255,255,.1);
-  font-family:inherit;transition:all .15s;
+  padding:6px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;
+  background:rgba(255,255,255,.07);color:var(--t2);border:1px solid rgba(255,255,255,.1);
+  font-family:inherit;transition:all .2s var(--spring);
+  -webkit-tap-highlight-color:transparent;
 }
-.req-ignore-btn:hover{background:rgba(255,69,58,.15);color:var(--red);border-color:rgba(255,69,58,.3);}
+.req-ignore-btn:hover{
+  background:rgba(255,69,58,.15);color:var(--red);
+  border-color:rgba(255,69,58,.3);
+  box-shadow:0 3px 10px rgba(255,69,58,.2);
+  transform:translateY(-1px);
+}
+.req-ignore-btn:active{transform:scale(.95);}
+
+/* ── Requests empty state ── */
+#requestList .thread-list-empty{
+  padding:48px 20px;
+}
+#requestList .thread-list-empty::before{
+  content:'📬';font-size:40px;display:block;margin-bottom:12px;opacity:.6;
+}
 
 /* ── Chat area ── */
 .messenger-chat{
@@ -2576,8 +2667,8 @@ function renderRequestList(reqs) {
       </div>
       <div class="req-item-actions">
         <button class="req-accept-btn" onclick="acceptRequest('${rq.tid}','${safeNm}',this)">✅ قبول</button>
-        <button class="req-ignore-btn" onclick="ignoreRequest('${rq.tid}',this)">🗑 تجاهل</button>
-        <button class="req-ignore-btn" onclick="openThread('${rq.tid}','${safeNm}')" style="color:var(--blue);border-color:rgba(10,132,255,.25)">👁 عرض</button>
+        <button class="req-view-btn"   onclick="openThread('${rq.tid}','${safeNm}')">👁 عرض</button>
+        <button class="req-ignore-btn" onclick="ignoreRequest('${rq.tid}',this)" title="تجاهل">🗑</button>
       </div>
     </div>`;
   }).join("");

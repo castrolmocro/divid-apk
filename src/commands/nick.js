@@ -40,13 +40,16 @@ function restoreAll() {
 }
 restoreAll();
 
-// ── تطبيق كنية لشخص واحد (للاستعادة الفورية من onEvent) ─────────────────────
+// ── تطبيق كنية لشخص واحد (من onEvent — بتأخير 3.5–5 ثوانٍ) ────────────────
 async function applyNick(api, tid, uid, name) {
   const key = `${tid}:${uid}`;
   if (global._nickRestoring[key]) return;
   global._nickRestoring[key] = true;
+  // انتظر 3.5–5 ثانية قبل الاستعادة (نفس تأخير الحلقة)
+  await sleep(3500 + Math.random() * 1500);
+  if (!global._nickLocks[tid]?.active) { delete global._nickRestoring[key]; return; }
   try { await api.changeNickname(name || "", tid, uid); } catch (_) {}
-  await sleep(800); // تأخير قصير للاستعادة الفورية
+  await sleep(loopDelay()); // تأخير إضافي بعد التغيير
   delete global._nickRestoring[key];
 }
 
