@@ -3,13 +3,24 @@ package com.djamel.davidbot;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.BitmapShader;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
+import android.util.Base64;
+import android.widget.ImageView;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -57,10 +68,13 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     // ── Constants ────────────────────────────────────────────────────────
-    private static final int    FILE_CHOOSER_REQUEST = 1001;
-    private static final String PREF_PROFILES        = "bot_profiles_v2";
-    private static final String PREF_ACTIVE_IDX      = "active_profile_idx";
-    private static final String DEFAULT_URL          = "http://localhost:5000";
+    private static final int    FILE_CHOOSER_REQUEST  = 1001;
+    private static final int    IMAGE_PICK_REQUEST    = 1002;
+    private static final String PREF_PROFILES         = "bot_profiles_v2";
+    private static final String PREF_ACTIVE_IDX       = "active_profile_idx";
+    private static final String PREF_AVATAR_B64       = "bot_avatar_b64";
+    private static final String PREF_APP_DISPLAY_NAME = "app_display_name";
+    private static final String DEFAULT_URL           = "http://localhost:5000";
 
     // ── Views ────────────────────────────────────────────────────────────
     private DrawerLayout       drawerLayout;
@@ -77,6 +91,10 @@ public class MainActivity extends AppCompatActivity {
 
     // ── Phone-as-Host: WakeLock ───────────────────────────────────────────
     private PowerManager.WakeLock wakeLock;
+
+    // ── Custom Avatar + Display Name ──────────────────────────────────────
+    private String botAvatarB64       = null;
+    private String appDisplayName     = "DAVID V1";
 
     // ── BotProfile ───────────────────────────────────────────────────────
     static class BotProfile {
@@ -149,6 +167,28 @@ public class MainActivity extends AppCompatActivity {
         public void openPhoneHostHelp() {
             new Handler(Looper.getMainLooper()).post(MainActivity.this::showPhoneAsHostDialog);
         }
+
+        @JavascriptInterface
+        public void switchTab(String tab) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                String safe = tab.replaceAll("[^a-zA-Z0-9_-]", "");
+                webView.evaluateJavascript(
+                    "if(typeof switchTab==='function')switchTab('" + safe + "');", null);
+                if (drawerLayout.isDrawerOpen(drawerPanel))
+                    drawerLayout.closeDrawer(drawerPanel);
+            });
+        }
+
+        @JavascriptInterface
+        public void copyToClipboard(String text) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                try {
+                    ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("copy", text));
+                    Toast.makeText(MainActivity.this, "✅ تم النسخ", Toast.LENGTH_SHORT).show();
+                } catch (Exception ignored) {}
+            });
+        }
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────
@@ -179,6 +219,7 @@ public class MainActivity extends AppCompatActivity {
         drawerPanel  = findViewById(R.id.drawer_panel);
 
         loadProfiles();
+        loadAvatarAndName();
         setupWebView();
         buildDrawerContent();
         setupSwipeRefresh();
@@ -226,6 +267,24 @@ public class MainActivity extends AppCompatActivity {
         if (profiles.isEmpty()) return new BotProfile("البوت الرئيسي", DEFAULT_URL, "#0A84FF");
         if (activeIdx >= profiles.size()) activeIdx = 0;
         return profiles.get(activeIdx);
+    }
+
+    // ── Avatar + Display Name ─────────────────────────────────────────────
+    private void loadAvatarAndName() {
+        botAvatarB64   = prefs.getString(PREF_AVATAR_B64, null);
+        appDisplayName = prefs.getString(PREF_APP_DISPLAY_NAME, "DAVID V1");
+    }
+
+    private Bitmap circleBitmap(Bitmap src) {
+        int size = Math.min(src.getWidth(), src.getHeight());
+        Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(out);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setShader(new BitmapShader(
+            Bitmap.createScaledBitmap(src, size, size, true),
+            Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint);
+        return out;
     }
 
     // ── WebView Setup ────────────────────────────────────────────────────
@@ -334,20 +393,38 @@ public class MainActivity extends AppCompatActivity {
         String accent = getActiveProfile().color.replace("'", "\\'");
         webView.evaluateJavascript(
             "(function(){" +
+            // Viewport
             "var m=document.querySelector('meta[name=viewport]');" +
             "if(m)m.setAttribute('content','width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover');" +
             "document.body&&document.body.classList.add('android-app');" +
-            "if(!document.getElementById('_dv_a')){var s=document.createElement('style');s.id='_dv_a';" +
-            "s.textContent=':root{--android-app:1;--app-accent:" + accent + "}" +
-            "body.android-app{padding-top:env(safe-area-inset-top,0)!important}';" +
+            // Base CSS overrides
+            "if(!document.getElementById('_dv_android')){var s=document.createElement('style');s.id='_dv_android';" +
+            "s.textContent='" +
+            ":root{--android-app:1;--app-accent:" + accent + ";}" +
+            "body.android-app{padding-top:env(safe-area-inset-top,0)!important;-webkit-overflow-scrolling:touch}" +
+            "body.android-app ::-webkit-scrollbar{display:none}" +
+            "body.android-app .nav-tabs{position:sticky;top:0;z-index:100;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}" +
+            "body.android-app .card{border-radius:18px!important}" +
+            "body.android-app .btn{border-radius:12px!important;touch-action:manipulation}" +
+            "body.android-app input,body.android-app textarea,body.android-app select{font-size:16px!important}" +
+            "';" +
             "document.head&&document.head.appendChild(s);}" +
+            // Swipe handle indicator (left edge)
             "if(!window._drawerHint){window._drawerHint=true;" +
             "var h=document.createElement('div');" +
-            "h.style.cssText='position:fixed;left:0;top:50%;transform:translateY(-50%);width:4px;height:48px;" +
-            "background:var(--app-accent,#0A84FF);border-radius:0 4px 4px 0;opacity:.5;z-index:9999;cursor:pointer;';" +
-            "h.title='القائمة الجانبية';" +
+            "h.id='_dv_handle';" +
+            "h.style.cssText='position:fixed;left:0;top:50%;transform:translateY(-50%);" +
+            "width:4px;height:56px;background:var(--app-accent," + accent + ");" +
+            "border-radius:0 6px 6px 0;opacity:.45;z-index:9999;cursor:pointer;" +
+            "transition:opacity .2s,width .2s';" +
+            "h.onmouseenter=function(){this.style.opacity='.75';this.style.width='6px'};" +
+            "h.onmouseleave=function(){this.style.opacity='.45';this.style.width='4px'};" +
             "h.onclick=function(){if(window.Android)Android.openDrawer();};" +
             "document.body&&document.body.appendChild(h);}" +
+            // Bind copy button to Android bridge
+            "document.querySelectorAll('[data-copy]').forEach(function(el){" +
+            "el.onclick=function(){if(window.Android)Android.copyToClipboard(el.getAttribute('data-copy'));};" +
+            "});" +
             "})();",
             null
         );
@@ -377,15 +454,25 @@ public class MainActivity extends AppCompatActivity {
         logoRow.setOrientation(LinearLayout.HORIZONTAL);
         logoRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView logo = new TextView(this);
-        logo.setText("D");
-        logo.setTextSize(20);
-        logo.setTypeface(null, Typeface.BOLD);
-        logo.setTextColor(Color.WHITE);
-        logo.setGravity(Gravity.CENTER);
-        logo.setBackground(makeRoundRect(dp(10), Color.parseColor(getActiveProfile().color)));
-        logo.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
-        logoRow.addView(logo);
+        // Avatar: custom image or fallback "D" letter
+        View logoView;
+        if (botAvatarB64 != null) {
+            try {
+                byte[] imgBytes = Base64.decode(botAvatarB64, Base64.DEFAULT);
+                Bitmap raw = BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.length);
+                Bitmap circ = circleBitmap(raw);
+                ImageView iv = new ImageView(this);
+                iv.setImageBitmap(circ);
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                iv.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+                logoView = iv;
+            } catch (Exception e) {
+                logoView = makeLogoFallback();
+            }
+        } else {
+            logoView = makeLogoFallback();
+        }
+        logoRow.addView(logoView);
 
         LinearLayout titleBlock = new LinearLayout(this);
         titleBlock.setOrientation(LinearLayout.VERTICAL);
@@ -394,7 +481,7 @@ public class MainActivity extends AppCompatActivity {
         titleBlock.setLayoutParams(tbLp);
 
         TextView titleTv = new TextView(this);
-        titleTv.setText("DAVID V1");
+        titleTv.setText(appDisplayName);
         titleTv.setTextSize(17);
         titleTv.setTypeface(null, Typeface.BOLD);
         titleTv.setTextColor(Color.WHITE);
@@ -442,6 +529,16 @@ public class MainActivity extends AppCompatActivity {
         urlLp.leftMargin = dp(8);
         urlTv.setLayoutParams(urlLp);
         urlPill.addView(urlTv);
+
+        // Copy URL button
+        TextView copyUrlBtn = new TextView(this);
+        copyUrlBtn.setText("📋");
+        copyUrlBtn.setTextSize(13);
+        copyUrlBtn.setGravity(Gravity.CENTER);
+        copyUrlBtn.setLayoutParams(new LinearLayout.LayoutParams(dp(28), dp(28)));
+        copyUrlBtn.setOnClickListener(v -> copyUrlToClipboard());
+        urlPill.addView(copyUrlBtn);
+
         header.addView(urlPill);
         drawerPanel.addView(header);
 
@@ -455,6 +552,104 @@ public class MainActivity extends AppCompatActivity {
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(12), dp(10), dp(12), dp(24));
         scroll.addView(content);
+
+        // ── Bot Status Card ──
+        addSectionLabel(content, "حالة الاتصال");
+
+        LinearLayout statusCard = new LinearLayout(this);
+        statusCard.setOrientation(LinearLayout.HORIZONTAL);
+        statusCard.setGravity(Gravity.CENTER_VERTICAL);
+        statusCard.setBackground(makeRoundRect(dp(12), Color.parseColor("#1A1A1E")));
+        statusCard.setPadding(dp(14), dp(12), dp(12), dp(12));
+        LinearLayout.LayoutParams scLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        scLp.bottomMargin = dp(12);
+        statusCard.setLayoutParams(scLp);
+
+        final TextView statusDotTv = new TextView(this);
+        statusDotTv.setText("●");
+        statusDotTv.setTextSize(18);
+        statusDotTv.setTextColor(Color.parseColor("#636366"));
+        statusDotTv.setGravity(Gravity.CENTER);
+        statusDotTv.setLayoutParams(new LinearLayout.LayoutParams(dp(24), dp(24)));
+        statusCard.addView(statusDotTv);
+
+        LinearLayout statusBlock = new LinearLayout(this);
+        statusBlock.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams sbLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        sbLp.setMargins(dp(10), 0, 0, 0);
+        statusBlock.setLayoutParams(sbLp);
+
+        TextView statusTitle = new TextView(this);
+        statusTitle.setText("حالة البوت");
+        statusTitle.setTextSize(13);
+        statusTitle.setTypeface(null, Typeface.BOLD);
+        statusTitle.setTextColor(Color.WHITE);
+        statusBlock.addView(statusTitle);
+
+        final TextView statusLabelTv = new TextView(this);
+        statusLabelTv.setText("اضغط 🔍 للفحص");
+        statusLabelTv.setTextSize(11);
+        statusLabelTv.setTextColor(Color.parseColor("#8E8E93"));
+        statusBlock.addView(statusLabelTv);
+        statusCard.addView(statusBlock);
+
+        final android.widget.Button pingBtn = new android.widget.Button(this);
+        pingBtn.setText("🔍");
+        pingBtn.setTextSize(14);
+        pingBtn.setBackground(makeRoundRect(dp(10), Color.parseColor("#2C2C2E")));
+        pingBtn.setTextColor(Color.WHITE);
+        pingBtn.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
+        pingBtn.setOnClickListener(v -> pingBotServer(statusDotTv, statusLabelTv, pingBtn));
+        statusCard.addView(pingBtn);
+        content.addView(statusCard);
+
+        // ── Quick Navigation Chips ──
+        addSectionLabel(content, "تنقل سريع");
+        LinearLayout navChips = new LinearLayout(this);
+        navChips.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams ncLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ncLp.bottomMargin = dp(12);
+        navChips.setLayoutParams(ncLp);
+
+        String[][] quickTabs = {
+            {"💬", "مسنجر", "messenger"},
+            {"🍪", "كوكيز", "cookies"},
+            {"📋", "سجلات", "logs"},
+            {"🚀", "Railway", "railway"}
+        };
+        for (String[] t : quickTabs) {
+            LinearLayout chip = new LinearLayout(this);
+            chip.setOrientation(LinearLayout.VERTICAL);
+            chip.setGravity(Gravity.CENTER);
+            chip.setPadding(0, dp(8), 0, dp(8));
+            chip.setBackground(makeSelector(dp(10), Color.parseColor("#1E1E22"), Color.parseColor("#2C2C2E")));
+            LinearLayout.LayoutParams chipLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            chipLp.setMargins(dp(3), 0, dp(3), 0);
+            chip.setLayoutParams(chipLp);
+            final String tabTarget = t[2];
+            chip.setOnClickListener(v -> {
+                drawerLayout.closeDrawer(drawerPanel);
+                webView.evaluateJavascript(
+                    "if(typeof switchTab==='function')switchTab('" + tabTarget + "');", null);
+            });
+            TextView emTv = new TextView(this);
+            emTv.setText(t[0]);
+            emTv.setTextSize(18);
+            emTv.setGravity(Gravity.CENTER);
+            chip.addView(emTv);
+            TextView lblTv = new TextView(this);
+            lblTv.setText(t[1]);
+            lblTv.setTextSize(9.5f);
+            lblTv.setTextColor(Color.parseColor("#8E8E93"));
+            lblTv.setGravity(Gravity.CENTER);
+            chip.addView(lblTv);
+            navChips.addView(chip);
+        }
+        content.addView(navChips);
+
+        addDivider(content);
 
         // ── Profiles ──
         addSectionLabel(content, "البوتات");
@@ -484,6 +679,10 @@ public class MainActivity extends AppCompatActivity {
 
         // ── Quick actions ──
         addSectionLabel(content, "إجراءات سريعة");
+
+        LinearLayout avatarBtn = makeActionBtn("🖼️  صورة البوت / اسم التطبيق", "#FF9F0A");
+        avatarBtn.setOnClickListener(v -> { drawerLayout.closeDrawer(drawerPanel); showAvatarAndNameDialog(); });
+        content.addView(avatarBtn);
 
         LinearLayout nickBtn = makeActionBtn("✏️  تغيير الكنية في الكل", "#BF5AF2");
         nickBtn.setOnClickListener(v -> { drawerLayout.closeDrawer(drawerPanel); showNicknameDialog(); });
@@ -532,7 +731,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Version footer
         TextView footer = new TextView(this);
-        footer.setText("DAVID V1  •  v4.0  •  © 2025 DJAMEL");
+        footer.setText("DAVID V1  •  v5.0  •  © 2025 DJAMEL");
         footer.setTextSize(10);
         footer.setTextColor(Color.parseColor("#3A3A3C"));
         footer.setGravity(Gravity.CENTER);
@@ -599,30 +798,55 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private LinearLayout makeActionBtn(String text, String color) {
+        int accentColor;
+        try { accentColor = Color.parseColor(color); } catch (Exception e) { accentColor = 0xFF0A84FF; }
+
         LinearLayout btn = new LinearLayout(this);
         btn.setOrientation(LinearLayout.HORIZONTAL);
         btn.setGravity(Gravity.CENTER_VERTICAL);
-        btn.setPadding(dp(14), dp(13), dp(14), dp(13));
-        btn.setBackground(makeSelector(dp(10), Color.parseColor("#1C1C1E"), Color.parseColor("#2C2C2E")));
+        btn.setBackground(makeSelector(dp(12), Color.parseColor("#1E1E22"), Color.parseColor("#28282C")));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = dp(6);
         btn.setLayoutParams(lp);
 
+        // Left colored accent strip
+        View accent = new View(this);
+        accent.setBackground(makeRoundRect(dp(3), accentColor));
+        LinearLayout.LayoutParams accentLp = new LinearLayout.LayoutParams(dp(3), dp(42));
+        accentLp.setMargins(dp(2), dp(5), 0, dp(5));
+        accent.setLayoutParams(accentLp);
+        btn.addView(accent);
+
         TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(14);
-        tv.setTextColor(Color.parseColor(color));
+        tv.setTextSize(13.5f);
+        tv.setTextColor(Color.WHITE);
         tv.setTypeface(null, Typeface.BOLD);
-        tv.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams tvLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tvLp.setMargins(dp(12), dp(13), 0, dp(13));
+        tv.setLayoutParams(tvLp);
         btn.addView(tv);
+
+        // Colored dot indicator
+        View dot = new View(this);
+        GradientDrawable dotBg = new GradientDrawable();
+        dotBg.setShape(GradientDrawable.OVAL);
+        dotBg.setColor(accentColor);
+        dot.setBackground(dotBg);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(dp(7), dp(7));
+        dotLp.setMargins(0, 0, dp(6), 0);
+        dot.setLayoutParams(dotLp);
+        btn.addView(dot);
 
         TextView arrow = new TextView(this);
         arrow.setText("›");
-        arrow.setTextSize(18);
-        arrow.setTextColor(Color.parseColor("#48484A"));
+        arrow.setTextSize(17);
+        arrow.setTextColor(Color.parseColor("#636366"));
         arrow.setGravity(Gravity.CENTER);
-        arrow.setLayoutParams(new LinearLayout.LayoutParams(dp(20), dp(20)));
+        LinearLayout.LayoutParams arrowLp = new LinearLayout.LayoutParams(dp(20), dp(20));
+        arrowLp.setMargins(0, 0, dp(8), 0);
+        arrow.setLayoutParams(arrowLp);
         btn.addView(arrow);
 
         return btn;
@@ -1034,50 +1258,64 @@ public class MainActivity extends AppCompatActivity {
         String url = getActiveUrl();
         boolean isLocal = url.contains("localhost") || url.contains("127.0.0.1") || url.contains("192.168.");
         String html =
-            "<html><head><meta charset='UTF-8'>" +
-            "<meta name='viewport' content='width=device-width,initial-scale=1.0'>" +
+            "<!DOCTYPE html><html dir='rtl'><head><meta charset='UTF-8'>" +
+            "<meta name='viewport' content='width=device-width,initial-scale=1.0,maximum-scale=1.0'>" +
             "<style>" +
-            "*{box-sizing:border-box;margin:0;padding:0}" +
-            "body{background:#000;color:#fff;font-family:-apple-system,system-ui,sans-serif;" +
+            "*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}" +
+            "body{background:#050508;color:#fff;font-family:-apple-system,system-ui,'Segoe UI',sans-serif;" +
             "min-height:100vh;display:flex;flex-direction:column;align-items:center;" +
-            "justify-content:center;gap:10px;padding:28px 20px;text-align:center}" +
-            "h2{color:#FF453A;font-size:20px;font-weight:800;margin-bottom:2px}" +
-            "p{color:rgba(255,255,255,.55);font-size:13px;line-height:1.6}" +
-            "code{color:#0A84FF;background:rgba(10,132,255,.12);padding:3px 10px;border-radius:8px;font-size:11px;display:inline-block;margin:4px 0;word-break:break-all;max-width:90%}" +
-            ".btn{width:100%;max-width:320px;border:none;border-radius:16px;padding:15px 20px;" +
-            "font-size:14px;font-weight:700;cursor:pointer;color:#fff;margin-top:4px;text-align:center}" +
-            ".btn:active{opacity:.65}" +
-            ".b-retry{background:linear-gradient(135deg,#0A84FF,#5AC8FA)}" +
-            ".b-settings{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1)}" +
+            "justify-content:center;gap:12px;padding:30px 20px;text-align:center;overflow-x:hidden}" +
+            ".icon-wrap{width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(255,69,58,.2),rgba(255,69,58,0));" +
+            "display:flex;align-items:center;justify-content:center;font-size:42px;" +
+            "animation:pulse 2s ease-in-out infinite}" +
+            "@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.8}}" +
+            "h2{font-size:22px;font-weight:800;background:linear-gradient(135deg,#FF453A,#FF9F0A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:4px}" +
+            "p.sub{color:rgba(255,255,255,.45);font-size:12.5px;line-height:1.6;max-width:300px}" +
+            ".url-box{background:rgba(10,132,255,.1);border:1px solid rgba(10,132,255,.25);border-radius:12px;" +
+            "padding:9px 14px;font-size:11px;color:#5AC8FA;word-break:break-all;max-width:100%;width:90%}" +
+            ".card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:18px;" +
+            "padding:14px 16px;width:100%;max-width:340px;text-align:right}" +
+            ".card-title{font-size:11.5px;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:10px;text-align:center;letter-spacing:.5px}" +
+            ".mode-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}" +
+            ".mode-row:last-child{border-bottom:none;padding-bottom:0}" +
+            ".mode-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}" +
+            ".mode-name{font-size:12.5px;font-weight:600;color:#fff;flex:1}" +
+            ".mode-desc{font-size:10.5px;color:rgba(255,255,255,.4)}" +
+            ".d-rail{background:linear-gradient(135deg,#6366F1,#8B5CF6)}" +
+            ".d-phone{background:#32D74B}.d-replit{background:#0A84FF}" +
+            ".btns{display:flex;flex-direction:column;gap:8px;width:100%;max-width:340px}" +
+            ".btn{width:100%;border:none;border-radius:14px;padding:14px 20px;" +
+            "font-size:14px;font-weight:700;cursor:pointer;color:#fff;text-align:center;letter-spacing:.2px}" +
+            ".btn:active{opacity:.6;transform:scale(.98)}" +
+            ".b-retry{background:linear-gradient(135deg,#0A84FF,#5AC8FA);box-shadow:0 4px 20px rgba(10,132,255,.35)}" +
             ".b-railway{background:linear-gradient(135deg,#6366F1,#8B5CF6)}" +
-            ".b-phone{background:rgba(50,215,75,.15);border:1px solid rgba(50,215,75,.3);color:#32D74B}" +
-            ".b-drawer{background:rgba(191,90,242,.15);border:1px solid rgba(191,90,242,.3);color:#BF5AF2}" +
-            ".divider{width:40px;height:2px;background:rgba(255,255,255,.1);border-radius:2px;margin:6px auto}" +
-            ".mode-hint{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);" +
-            "border-radius:16px;padding:14px 16px;width:100%;max-width:320px;margin-bottom:4px}" +
-            ".mode-hint-title{font-size:12px;font-weight:700;margin-bottom:6px;color:rgba(255,255,255,.7)}" +
-            ".mode-opt{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;color:rgba(255,255,255,.6)}" +
-            ".mode-opt:last-child{border-bottom:none}" +
-            ".mode-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}" +
-            ".d-rail{background:#6366F1}.d-phone{background:#32D74B}.d-replit{background:#0A84FF}" +
+            ".b-phone{background:rgba(50,215,75,.12);border:1px solid rgba(50,215,75,.3);color:#32D74B}" +
+            ".b-settings{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.7)}" +
+            ".b-drawer{background:rgba(191,90,242,.12);border:1px solid rgba(191,90,242,.25);color:#BF5AF2}" +
+            ".sep{width:28px;height:2px;background:rgba(255,255,255,.1);border-radius:2px;margin:2px auto}" +
+            ".ver{font-size:10px;color:rgba(255,255,255,.15);margin-top:8px}" +
             "</style></head><body>" +
-            "<div style='font-size:52px;margin-bottom:4px'>📡</div>" +
+            "<div class='icon-wrap'>📡</div>" +
             "<h2>تعذّر الاتصال</h2>" +
-            "<p>لا يمكن الوصول إلى البوت على الرابط:<br><code>" + url + "</code></p>" +
-            "<div class='mode-hint'>" +
-            "<div class='mode-hint-title'>اختر وضع الاستضافة:</div>" +
-            "<div class='mode-opt'><div class='mode-dot d-rail'></div><span>Railway — بوت سحابي 24/7 عبر railway.app</span></div>" +
-            "<div class='mode-opt'><div class='mode-dot d-phone'></div><span>الهاتف — Termux محلي على نفس الجهاز</span></div>" +
-            "<div class='mode-opt'><div class='mode-dot d-replit'></div><span>Replit — تشغيل مباشر على Replit</span></div>" +
+            "<p class='sub'>لا يمكن الوصول إلى البوت<br>تحقق من الرابط ووضع الاستضافة</p>" +
+            "<div class='url-box'>" + url + "</div>" +
+            "<div class='card'>" +
+            "<div class='card-title'>▾ خيارات الاستضافة</div>" +
+            "<div class='mode-row'><div class='mode-dot d-rail'></div><div><div class='mode-name'>Railway</div><div class='mode-desc'>سحابي 24/7 — مجاني على railway.app</div></div></div>" +
+            "<div class='mode-row'><div class='mode-dot d-phone'></div><div><div class='mode-name'>الهاتف</div><div class='mode-desc'>Termux محلي على نفس الجهاز</div></div></div>" +
+            "<div class='mode-row'><div class='mode-dot d-replit'></div><div><div class='mode-name'>Replit</div><div class='mode-desc'>تشغيل مباشر على منصة Replit</div></div></div>" +
             "</div>" +
+            "<div class='btns'>" +
             "<button class='btn b-retry' onclick='location.reload()'>🔄 إعادة المحاولة</button>" +
             "<button class='btn b-railway' onclick='Android.openRailwayHelp()'>🚂 كيفية النشر على Railway</button>" +
             (isLocal ?
             "<button class='btn b-phone' onclick='Android.openPhoneHostHelp()'>📱 إعداد الهاتف كسيرفر</button>" :
-            "<button class='btn b-phone' onclick='Android.openPhoneHostHelp()'>📱 استخدام الهاتف كسيرفر بدلاً</button>") +
-            "<div class='divider'></div>" +
+            "<button class='btn b-phone' onclick='Android.openPhoneHostHelp()'>📱 استخدام الهاتف كسيرفر</button>") +
+            "<div class='sep'></div>" +
             "<button class='btn b-settings' onclick='Android.openSettings()'>⚙️ تغيير رابط السيرفر</button>" +
             "<button class='btn b-drawer' onclick='Android.openDrawer()'>☰ اختر بوتاً آخر</button>" +
+            "</div>" +
+            "<div class='ver'>DAVID V1 — v5.0</div>" +
             "</body></html>";
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
     }
@@ -1159,6 +1397,28 @@ public class MainActivity extends AppCompatActivity {
                 results = new Uri[]{data.getData()};
             fileCallback.onReceiveValue(results);
             fileCallback = null;
+        } else if (requestCode == IMAGE_PICK_REQUEST && resultCode == Activity.RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                try {
+                    android.graphics.Bitmap bmp = android.provider.MediaStore.Images.Media
+                        .getBitmap(getContentResolver(), uri);
+                    // Scale down to max 256×256 to save space in prefs
+                    int maxSide = 256;
+                    float scale = Math.min((float) maxSide / bmp.getWidth(), (float) maxSide / bmp.getHeight());
+                    if (scale < 1f) bmp = Bitmap.createScaledBitmap(bmp,
+                        (int)(bmp.getWidth() * scale), (int)(bmp.getHeight() * scale), true);
+
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 88, baos);
+                    botAvatarB64 = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+                    prefs.edit().putString(PREF_AVATAR_B64, botAvatarB64).apply();
+                    buildDrawerContent();
+                    Toast.makeText(this, "✅ تم تغيير صورة البوت", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "❌ فشل تحميل الصورة: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }
         }
         super.onActivityResult(requestCode, resultCode, data);
     }
@@ -1289,6 +1549,178 @@ public class MainActivity extends AppCompatActivity {
             })
             .show()
             .getWindow().setBackgroundDrawable(makeRoundRect(dp(16), Color.parseColor("#1C1C1E")));
+    }
+
+    // ── Logo Fallback ─────────────────────────────────────────────────────
+    private View makeLogoFallback() {
+        TextView logo = new TextView(this);
+        logo.setText(appDisplayName.isEmpty() ? "D" : String.valueOf(appDisplayName.charAt(0)).toUpperCase());
+        logo.setTextSize(20);
+        logo.setTypeface(null, Typeface.BOLD);
+        logo.setTextColor(Color.WHITE);
+        logo.setGravity(Gravity.CENTER);
+        try {
+            String c1 = getActiveProfile().color;
+            int clr = Color.parseColor(c1);
+            int dark = Color.argb(255,
+                Math.max(0, Color.red(clr) - 60),
+                Math.max(0, Color.green(clr) - 60),
+                Math.max(0, Color.blue(clr) - 60));
+            GradientDrawable gd = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM, new int[]{clr, dark});
+            gd.setCornerRadius(dp(21));
+            logo.setBackground(gd);
+        } catch (Exception e) {
+            logo.setBackground(makeRoundRect(dp(21), Color.parseColor("#0A84FF")));
+        }
+        logo.setLayoutParams(new LinearLayout.LayoutParams(dp(42), dp(42)));
+        return logo;
+    }
+
+    // ── Avatar + Name Dialog ──────────────────────────────────────────────
+    private void showAvatarAndNameDialog() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(20), dp(16), dp(20), dp(8));
+        layout.setBackgroundColor(Color.parseColor("#1C1C1E"));
+
+        // Current avatar preview
+        LinearLayout avatarRow = new LinearLayout(this);
+        avatarRow.setOrientation(LinearLayout.HORIZONTAL);
+        avatarRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        View prevView;
+        if (botAvatarB64 != null) {
+            try {
+                byte[] imgBytes = Base64.decode(botAvatarB64, Base64.DEFAULT);
+                Bitmap raw = BitmapFactory.decodeByteArray(imgBytes, 0, imgBytes.length);
+                ImageView iv = new ImageView(this);
+                iv.setImageBitmap(circleBitmap(raw));
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                iv.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(52)));
+                prevView = iv;
+            } catch (Exception e) { prevView = makeLogoFallback(); }
+        } else {
+            prevView = makeLogoFallback();
+        }
+        avatarRow.addView(prevView);
+
+        TextView previewLabel = new TextView(this);
+        previewLabel.setText("  الصورة الحالية — اضغط 'تغيير' لاختيار جديدة");
+        previewLabel.setTextSize(12);
+        previewLabel.setTextColor(Color.parseColor("#8E8E93"));
+        LinearLayout.LayoutParams plLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        plLp.leftMargin = dp(8);
+        previewLabel.setLayoutParams(plLp);
+        avatarRow.addView(previewLabel);
+        layout.addView(avatarRow);
+
+        // App display name field
+        TextView nameLbl = new TextView(this);
+        nameLbl.setText("اسم التطبيق في الـ Header:");
+        nameLbl.setTextSize(12);
+        nameLbl.setTextColor(Color.parseColor("#8E8E93"));
+        LinearLayout.LayoutParams lblLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lblLp.topMargin = dp(18);
+        nameLbl.setLayoutParams(lblLp);
+        layout.addView(nameLbl);
+
+        EditText nameEt = makeInput(appDisplayName, "DAVID V1");
+        layout.addView(nameEt);
+
+        // Reset avatar button
+        android.widget.Button resetBtn = new android.widget.Button(this);
+        resetBtn.setText("🔄 حذف الصورة (العودة لحرف D)");
+        resetBtn.setTextSize(12);
+        resetBtn.setTextColor(Color.parseColor("#FF453A"));
+        resetBtn.setBackground(makeRoundRect(dp(10), Color.parseColor("#2C1010")));
+        LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rLp.topMargin = dp(14);
+        resetBtn.setLayoutParams(rLp);
+        resetBtn.setOnClickListener(vv -> {
+            botAvatarB64 = null;
+            prefs.edit().remove(PREF_AVATAR_B64).apply();
+            buildDrawerContent();
+            Toast.makeText(this, "✅ تمت إزالة الصورة", Toast.LENGTH_SHORT).show();
+        });
+        layout.addView(resetBtn);
+
+        ScrollView sv = new ScrollView(this);
+        sv.addView(layout);
+
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("🖼️ صورة البوت / اسم التطبيق")
+            .setView(sv)
+            .setPositiveButton("🖼️ تغيير الصورة", (d, which) -> {
+                Intent pick = new Intent(Intent.ACTION_PICK,
+                    android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                pick.setType("image/*");
+                startActivityForResult(Intent.createChooser(pick, "اختر صورة البوت"), IMAGE_PICK_REQUEST);
+            })
+            .setNeutralButton("💾 حفظ الاسم", (d, which) -> {
+                String newName = nameEt.getText().toString().trim();
+                if (newName.isEmpty()) newName = "DAVID V1";
+                appDisplayName = newName;
+                prefs.edit().putString(PREF_APP_DISPLAY_NAME, appDisplayName).apply();
+                buildDrawerContent();
+                Toast.makeText(this, "✅ تم حفظ الاسم: " + appDisplayName, Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("إلغاء", null)
+            .show()
+            .getWindow().setBackgroundDrawable(makeRoundRect(dp(16), Color.parseColor("#1C1C1E")));
+    }
+
+    // ── Ping Bot Connection ───────────────────────────────────────────────
+    private void pingBotServer(TextView dotTv, TextView labelTv, android.widget.Button btn) {
+        String pingUrl = getActiveUrl() + "/health";
+        btn.setEnabled(false);
+        btn.setText("⏳");
+        dotTv.setTextColor(Color.parseColor("#FF9F0A"));
+        labelTv.setText("جاري الفحص…");
+        new Thread(() -> {
+            boolean ok = false;
+            long latency = 0;
+            try {
+                long t = System.currentTimeMillis();
+                java.net.URL u = new java.net.URL(pingUrl);
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) u.openConnection();
+                c.setConnectTimeout(6000);
+                c.setReadTimeout(6000);
+                c.setRequestMethod("GET");
+                int code = c.getResponseCode();
+                latency = System.currentTimeMillis() - t;
+                ok = (code >= 200 && code < 400);
+                c.disconnect();
+            } catch (Exception ignored) {}
+            final boolean finalOk = ok;
+            final long finalMs = latency;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                btn.setEnabled(true);
+                btn.setText("🔍");
+                if (finalOk) {
+                    dotTv.setTextColor(Color.parseColor("#32D74B"));
+                    labelTv.setText("متصل ✓  (" + finalMs + "ms)");
+                } else {
+                    dotTv.setTextColor(Color.parseColor("#FF453A"));
+                    labelTv.setText("غير متصل ✗  — تحقق من الرابط");
+                }
+            });
+        }).start();
+    }
+
+    // ── Copy URL to Clipboard ─────────────────────────────────────────────
+    private void copyUrlToClipboard() {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm != null) {
+                cm.setPrimaryClip(ClipData.newPlainText("bot_url", getActiveUrl()));
+                Toast.makeText(this, "✅ تم نسخ رابط البوت", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "❌ فشل النسخ", Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ── Drawing Helpers ───────────────────────────────────────────────────
