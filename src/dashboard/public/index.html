@@ -3,445 +3,784 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>DAVID V1 — لوحة التحكم</title>
+<title>DAVID V1</title>
 <script src="/socket.io/socket.io.js"></script>
 <style>
+/* ════════════════════════════════════════════
+   iOS 26 — Liquid Glass Design System
+   ════════════════════════════════════════════ */
 :root{
   --bg:#000;
-  --s1:rgba(255,255,255,.07);--s2:rgba(255,255,255,.12);--s3:rgba(255,255,255,.18);
-  --bd:rgba(255,255,255,.13);--bd2:rgba(255,255,255,.08);
-  --text:#fff;--t2:rgba(255,255,255,.55);--t3:rgba(255,255,255,.35);
-  --blue:#0A84FF;--green:#30D158;--red:#FF453A;--yellow:#FFD60A;
-  --purple:#BF5AF2;--cyan:#5AC8F5;--orange:#FF9F0A;
-  --blur:saturate(200%) blur(28px);
-  --r:22px;--r2:14px;--r3:10px;
-  --glass:rgba(255,255,255,.06);
-  --glass-border:1px solid rgba(255,255,255,.14);
-  --shadow:0 8px 40px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.06);
-  --safe-bottom:env(safe-area-inset-bottom,0px);
-  --safe-top:env(safe-area-inset-top,0px);
-  --nav-h:65px;
+  --glass-1:rgba(255,255,255,.07);
+  --glass-2:rgba(255,255,255,.11);
+  --glass-3:rgba(255,255,255,.16);
+  --border:rgba(255,255,255,.12);
+  --border-2:rgba(255,255,255,.07);
+  --text:#fff;
+  --t2:rgba(255,255,255,.55);
+  --t3:rgba(255,255,255,.32);
+  --blue:#0A84FF;
+  --green:#32D74B;
+  --red:#FF453A;
+  --yellow:#FFD60A;
+  --purple:#BF5AF2;
+  --cyan:#5AC8FA;
+  --orange:#FF9F0A;
+  --pink:#FF375F;
+  --teal:#5AC8FA;
+  --blur:saturate(200%) blur(32px);
+  --r:26px;--r2:18px;--r3:12px;
+  --spring:cubic-bezier(.34,1.56,.64,1);
+  --ease:cubic-bezier(.25,.46,.45,.94);
+  --nav-h:72px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{font-size:16px;scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+html{font-size:16px;-webkit-text-size-adjust:100%;}
 body{
   background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',system-ui,sans-serif;
   min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;
-  padding-bottom:calc(var(--nav-h) + var(--safe-bottom));
+  padding-bottom:calc(var(--nav-h) + var(--safe-b) + 8px);
 }
-body::before{
-  content:'';position:fixed;inset:0;z-index:-2;
-  background:
-    radial-gradient(ellipse 70% 55% at 15% -10%,rgba(10,132,255,.22),transparent),
-    radial-gradient(ellipse 55% 45% at 88% 108%,rgba(191,90,242,.18),transparent),
-    radial-gradient(ellipse 40% 30% at 50% 50%,rgba(90,200,245,.06),transparent),
-    #000;
+
+/* ── Animated background ── */
+.bg-canvas{position:fixed;inset:0;z-index:-2;overflow:hidden;}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.18;animation:orbFloat 12s ease-in-out infinite;}
+.bg-orb-1{width:70vw;height:70vw;background:radial-gradient(circle,#0A84FF,transparent);top:-20%;right:-20%;animation-delay:0s;}
+.bg-orb-2{width:60vw;height:60vw;background:radial-gradient(circle,#BF5AF2,transparent);bottom:-15%;left:-15%;animation-delay:-4s;}
+.bg-orb-3{width:40vw;height:40vw;background:radial-gradient(circle,#32D74B,transparent);top:40%;left:40%;animation-delay:-8s;}
+@keyframes orbFloat{
+  0%,100%{transform:translate(0,0) scale(1);}
+  33%{transform:translate(3%,5%) scale(1.05);}
+  66%{transform:translate(-3%,-3%) scale(.97);}
 }
-body::after{
-  content:'';position:fixed;inset:0;z-index:-1;
-  background:radial-gradient(ellipse 100% 60% at 50% 100%,rgba(10,132,255,.04),transparent);
-  pointer-events:none;
-}
+body::after{content:'';position:fixed;inset:0;z-index:-1;background:rgba(0,0,0,.35);pointer-events:none;}
+
+/* ── Scrollbar ── */
 ::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:9px;}
 ::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:9px;}
-/* ── Login ── */
-#login-screen{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.95);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);}
-#login-screen.hidden{display:none;}
-.login-card{background:rgba(255,255,255,.07);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid rgba(255,255,255,.16);border-radius:28px;padding:44px 36px;width:min(390px,92vw);text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 0 .5px rgba(255,255,255,.06);}
-.login-logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--blue),var(--purple));display:inline-flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;margin-bottom:20px;box-shadow:0 0 30px rgba(10,132,255,.4);}
-.login-card h2{font-size:22px;font-weight:700;margin-bottom:6px;}
-.login-card p{font-size:13px;color:var(--t2);margin-bottom:28px;}
-.login-input{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:var(--r2);color:var(--text);font-size:15px;padding:12px 16px;outline:none;text-align:right;font-family:inherit;transition:border-color .2s;}
-.login-input:focus{border-color:var(--blue);}
-.login-btn{width:100%;margin-top:14px;background:var(--blue);color:#fff;border:none;border-radius:var(--r2);padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;box-shadow:0 4px 20px rgba(10,132,255,.4);}
-.login-btn:hover{filter:brightness(1.1);}
-.login-btn:active{transform:scale(.98);}
-.login-err{color:var(--red);font-size:12px;margin-top:8px;min-height:18px;}
-/* ── Header ── */
-.header{
-  position:sticky;top:0;z-index:100;
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 18px;padding-top:calc(12px + var(--safe-top));
-  background:rgba(0,0,0,.8);
-  -webkit-backdrop-filter:saturate(200%) blur(30px);backdrop-filter:saturate(200%) blur(30px);
-  border-bottom:1px solid rgba(255,255,255,.1);
-}
-.header-logo{display:flex;align-items:center;gap:11px;}
-.header-logo .icon{
-  width:36px;height:36px;border-radius:10px;
-  background:linear-gradient(135deg,var(--blue),var(--purple));
+
+/* ════ LOGIN ════ */
+#login-screen{
+  position:fixed;inset:0;z-index:9999;
   display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:800;
+  background:rgba(0,0,0,.7);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  animation:fadeIn .3s var(--ease);
+}
+#login-screen.hidden{display:none;}
+.lc{
+  background:rgba(255,255,255,.09);
+  -webkit-backdrop-filter:saturate(200%) blur(40px);
+  backdrop-filter:saturate(200%) blur(40px);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:32px;padding:44px 36px 38px;
+  width:min(400px,92vw);text-align:center;
+  box-shadow:0 40px 100px rgba(0,0,0,.6),0 0 0 .5px rgba(255,255,255,.08),inset 0 1px 0 rgba(255,255,255,.12);
+  animation:loginSlide .5s var(--spring);
+  position:relative;overflow:hidden;
+}
+.lc::before{content:'';position:absolute;inset:0;border-radius:32px;background:linear-gradient(145deg,rgba(255,255,255,.06),transparent 55%);pointer-events:none;}
+@keyframes loginSlide{from{opacity:0;transform:translateY(24px) scale(.95);}to{opacity:1;transform:translateY(0) scale(1);}}
+.lc-logo{
+  width:72px;height:72px;border-radius:22px;margin:0 auto 20px;
+  background:linear-gradient(135deg,#0A84FF,#BF5AF2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;font-weight:900;letter-spacing:-1px;
+  box-shadow:0 0 40px rgba(10,132,255,.5),0 8px 24px rgba(10,132,255,.3);
+  animation:logoPulse 3s ease-in-out infinite;
+}
+@keyframes logoPulse{0%,100%{box-shadow:0 0 40px rgba(10,132,255,.5),0 8px 24px rgba(10,132,255,.3);}50%{box-shadow:0 0 60px rgba(191,90,242,.6),0 8px 28px rgba(191,90,242,.35);}}
+.lc h2{font-size:24px;font-weight:700;margin-bottom:6px;letter-spacing:-.3px;}
+.lc p{font-size:13px;color:var(--t2);margin-bottom:28px;}
+.lc input{
+  width:100%;background:rgba(255,255,255,.07);
+  border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--text);font-size:15px;padding:14px 16px;
+  outline:none;text-align:right;font-family:inherit;
+  transition:border-color .2s,background .2s;
+}
+.lc input:focus{border-color:var(--blue);background:rgba(10,132,255,.08);}
+.lc-btn{
+  width:100%;margin-top:12px;
+  background:linear-gradient(135deg,#0A84FF,#0066CC);
+  color:#fff;border:none;border-radius:var(--r3);
+  padding:15px;font-size:15px;font-weight:700;
+  cursor:pointer;font-family:inherit;
+  transition:all .2s var(--spring);
+  box-shadow:0 6px 24px rgba(10,132,255,.45);
+}
+.lc-btn:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(10,132,255,.55);}
+.lc-btn:active{transform:scale(.97);}
+.lc-err{color:var(--red);font-size:12px;margin-top:10px;min-height:18px;transition:all .2s;}
+
+/* ════ HEADER ════ */
+.hdr{
+  position:sticky;top:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;
+  padding-top:calc(14px + var(--safe-t));
+  background:rgba(0,0,0,.6);
+  -webkit-backdrop-filter:saturate(200%) blur(40px);
+  backdrop-filter:saturate(200%) blur(40px);
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.hdr-brand{display:flex;align-items:center;gap:12px;}
+.hdr-icon{
+  width:38px;height:38px;border-radius:12px;
+  background:linear-gradient(135deg,#0A84FF,#BF5AF2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:900;
   box-shadow:0 0 20px rgba(10,132,255,.4);
 }
-.header-logo h1{font-size:17px;font-weight:700;}
-.header-logo span{display:block;font-size:10px;color:var(--t2);}
-.status-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;transition:all .3s;}
-.status-pill.online{background:rgba(48,209,88,.15);color:var(--green);}
-.status-pill.offline{background:rgba(255,69,58,.15);color:var(--red);}
-.status-pill.connecting{background:rgba(255,214,10,.15);color:var(--yellow);}
-.status-pill .dot{width:7px;height:7px;border-radius:50%;animation:pulse 2s infinite;}
-.status-pill.online .dot{background:var(--green);}
-.status-pill.offline .dot{background:var(--red);animation:none;}
-.status-pill.connecting .dot{background:var(--yellow);}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.85);}}
-/* ── Layout ── */
-.main{max-width:1000px;margin:0 auto;padding:16px 14px;}
+.hdr-title{font-size:17px;font-weight:700;letter-spacing:-.2px;}
+.hdr-sub{font-size:10px;color:var(--t3);margin-top:1px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  padding:6px 13px;border-radius:30px;
+  font-size:12px;font-weight:600;
+  transition:all .3s var(--ease);
+}
+.status-pill.online{background:rgba(50,215,75,.14);color:var(--green);border:1px solid rgba(50,215,75,.25);}
+.status-pill.offline{background:rgba(255,69,58,.12);color:var(--red);border:1px solid rgba(255,69,58,.2);}
+.status-pill.connecting{background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.2);}
+.status-dot{width:7px;height:7px;border-radius:50%;}
+.online .status-dot{background:var(--green);animation:pulse 2s infinite;}
+.offline .status-dot{background:var(--red);}
+.connecting .status-dot{background:var(--yellow);animation:blink 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.8);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+.logout-btn{
+  background:rgba(255,69,58,.1);border:1px solid rgba(255,69,58,.2);
+  color:var(--red);cursor:pointer;font-size:12px;font-weight:600;
+  padding:6px 12px;border-radius:20px;font-family:inherit;
+  transition:all .2s;
+}
+.logout-btn:hover{background:rgba(255,69,58,.2);}
+
+/* ════ MAIN CONTENT ════ */
+.main{max-width:960px;margin:0 auto;padding:16px 14px 8px;}
+
+/* ════ PAGE TRANSITIONS ════ */
+.page-wrap{position:relative;}
+.tab-pane{display:none;}
+.tab-pane.active{
+  display:block;
+  animation:pageEnter .38s var(--spring);
+}
+.tab-pane.exit{animation:pageExit .22s var(--ease) forwards;}
+@keyframes pageEnter{
+  from{opacity:0;transform:translateY(14px) scale(.988);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
+@keyframes pageExit{
+  from{opacity:1;transform:translateY(0) scale(1);}
+  to{opacity:0;transform:translateY(-8px) scale(.992);}
+}
+
+/* ════ CARDS ════ */
 .card{
-  background:rgba(255,255,255,.06);
-  -webkit-backdrop-filter:saturate(200%) blur(28px);
-  backdrop-filter:saturate(200%) blur(28px);
-  border:1px solid rgba(255,255,255,.12);
-  border-radius:var(--r);padding:18px;
-  box-shadow:0 8px 40px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);
+  background:rgba(255,255,255,.065);
+  -webkit-backdrop-filter:saturate(200%) blur(30px);
+  backdrop-filter:saturate(200%) blur(30px);
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:var(--r);padding:20px;
+  box-shadow:0 8px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.09);
   position:relative;overflow:hidden;
+  margin-bottom:14px;
+  transition:transform .2s var(--spring),box-shadow .2s;
 }
 .card::before{
   content:'';position:absolute;inset:0;border-radius:var(--r);
-  background:linear-gradient(145deg,rgba(255,255,255,.04),transparent 60%);
+  background:linear-gradient(145deg,rgba(255,255,255,.05) 0%,transparent 55%);
   pointer-events:none;
 }
-.card-title{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;}
-/* ── Bot Info ── */
-.bot-row{display:flex;align-items:center;gap:16px;margin-bottom:14px;}
-.bot-avatar{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;flex-shrink:0;box-shadow:0 0 24px rgba(10,132,255,.35);}
-.bot-details h2{font-size:18px;font-weight:700;}
-.bot-details .bd-sub{font-size:12px;color:var(--t2);margin-top:3px;}
-.bot-details .bd-uid{font-size:11px;color:var(--t3);font-family:monospace;margin-top:2px;}
-/* ── Stats ── */
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
-@media(max-width:600px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
-.stat-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r2);padding:14px 10px;text-align:center;transition:transform .2s,background .2s;cursor:default;}
-.stat-card:hover{background:var(--s2);transform:translateY(-2px);}
-.stat-icon{font-size:18px;margin-bottom:5px;}
-.stat-value{font-size:24px;font-weight:700;line-height:1.1;}
-.stat-label{font-size:10px;color:var(--t2);margin-top:3px;font-weight:500;}
-.c-blue .stat-value{color:var(--blue);}  .c-green .stat-value{color:var(--green);}
-.c-purple .stat-value{color:var(--purple);} .c-yellow .stat-value{color:var(--yellow);}
-.c-cyan .stat-value{color:var(--cyan);}  .c-orange .stat-value{color:var(--orange);}
-.c-red .stat-value{color:var(--red);}    .c-pink .stat-value{color:#FF375F;}
-/* ── Tabs ── */
-.tabs{
-  display:flex;gap:6px;margin-bottom:14px;
-  overflow-x:auto;padding-bottom:4px;scrollbar-width:none;
-  -webkit-overflow-scrolling:touch;
+.card-title{
+  font-size:11px;font-weight:700;color:var(--t2);
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px;
 }
-.tabs::-webkit-scrollbar{display:none;}
-.tab{
-  padding:9px 16px;border-radius:22px;font-size:13px;font-weight:600;
-  cursor:pointer;border:1px solid var(--bd);
+
+/* ════ BOT CARD ════ */
+.bot-card{
+  background:linear-gradient(145deg,rgba(10,132,255,.12),rgba(191,90,242,.08));
+  border:1px solid rgba(10,132,255,.2);
+  border-radius:var(--r);padding:20px;
+  box-shadow:0 12px 48px rgba(10,132,255,.15),inset 0 1px 0 rgba(255,255,255,.1);
+  position:relative;overflow:hidden;margin-bottom:14px;
+}
+.bot-card::before{
+  content:'';position:absolute;top:-40%;right:-20%;
+  width:60%;height:120%;
+  background:radial-gradient(ellipse,rgba(10,132,255,.12),transparent 70%);
+  pointer-events:none;
+}
+.bot-row{display:flex;align-items:center;gap:16px;}
+.bot-av{
+  width:58px;height:58px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#0A84FF,#BF5AF2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;font-weight:900;
+  box-shadow:0 0 28px rgba(10,132,255,.4),0 6px 16px rgba(0,0,0,.4);
+}
+.bot-name{font-size:20px;font-weight:700;letter-spacing:-.3px;}
+.bot-sub{font-size:13px;color:var(--t2);margin-top:3px;}
+.bot-uid{font-size:11px;color:var(--t3);font-family:'SF Mono',monospace;margin-top:2px;}
+
+/* ════ STATS ════ */
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;margin-bottom:14px;
+}
+.stat{
   background:rgba(255,255,255,.06);
-  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
-  color:var(--t2);transition:all .2s;white-space:nowrap;font-family:inherit;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:var(--r2);padding:14px 10px;
+  text-align:center;cursor:default;
+  transition:all .22s var(--spring);
+  position:relative;overflow:hidden;
+}
+.stat:hover{transform:translateY(-3px) scale(1.01);background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);}
+.stat-ic{font-size:20px;margin-bottom:5px;}
+.stat-v{font-size:22px;font-weight:800;line-height:1;letter-spacing:-.5px;}
+.stat-l{font-size:10px;color:var(--t2);margin-top:4px;font-weight:500;}
+.s-blue .stat-v{color:var(--blue);}
+.s-green .stat-v{color:var(--green);}
+.s-purple .stat-v{color:var(--purple);}
+.s-yellow .stat-v{color:var(--yellow);}
+.s-cyan .stat-v{color:var(--cyan);}
+.s-orange .stat-v{color:var(--orange);}
+.s-pink .stat-v{color:var(--pink);}
+.s-teal .stat-v{color:var(--teal);}
+
+/* ════ DESKTOP TABS ════ */
+.tab-bar{
+  display:flex;gap:5px;margin-bottom:16px;
+  overflow-x:auto;padding-bottom:2px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.tab-bar::-webkit-scrollbar{display:none;}
+.tab{
+  padding:9px 16px;border-radius:24px;
+  font-size:13px;font-weight:600;cursor:pointer;
+  border:1px solid var(--border-2);
+  background:rgba(255,255,255,.055);
+  color:var(--t2);transition:all .22s var(--spring);
+  white-space:nowrap;font-family:inherit;
   min-height:38px;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
 }
-.tab:hover{background:var(--s2);}
+.tab:hover{background:rgba(255,255,255,.1);color:var(--text);}
 .tab.active{
-  background:var(--blue);color:#fff;border-color:transparent;
-  box-shadow:0 4px 18px rgba(10,132,255,.45);
+  background:var(--blue);color:#fff;
+  border-color:transparent;
+  box-shadow:0 4px 20px rgba(10,132,255,.45);
+  transform:translateY(-1px);
 }
-.tab-pane{display:none;animation:fadeIn .22s ease;}
-.tab-pane.active{display:block;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 
-/* ── Bottom Nav (mobile) ── */
+/* ════ BOTTOM NAV (mobile) ════ */
 .bottom-nav{
-  display:none;
-  position:fixed;bottom:0;left:0;right:0;z-index:500;
-  background:rgba(10,10,15,.88);
-  -webkit-backdrop-filter:saturate(200%) blur(30px);backdrop-filter:saturate(200%) blur(30px);
-  border-top:1px solid rgba(255,255,255,.1);
-  padding:8px 6px;
-  padding-bottom:calc(8px + var(--safe-bottom));
+  display:none;position:fixed;
+  bottom:0;left:0;right:0;z-index:500;
+  background:rgba(8,8,12,.82);
+  -webkit-backdrop-filter:saturate(200%) blur(40px);
+  backdrop-filter:saturate(200%) blur(40px);
+  border-top:1px solid rgba(255,255,255,.08);
+  padding:10px 4px;
+  padding-bottom:calc(10px + var(--safe-b));
   justify-content:space-around;align-items:center;
-  box-shadow:0 -4px 30px rgba(0,0,0,.5);
+  box-shadow:0 -8px 40px rgba(0,0,0,.5);
 }
-.bn-item{
-  display:flex;flex-direction:column;align-items:center;gap:2px;
-  padding:6px 10px;border-radius:12px;cursor:pointer;
+.bn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 10px;border-radius:14px;cursor:pointer;
   border:none;background:transparent;
-  color:rgba(255,255,255,.45);font-size:9px;font-weight:700;
-  font-family:inherit;letter-spacing:.3px;
-  transition:all .2s;-webkit-tap-highlight-color:transparent;min-width:52px;
+  color:rgba(255,255,255,.38);
+  font-size:9px;font-weight:700;font-family:inherit;
+  letter-spacing:.3px;transition:all .22s var(--spring);
+  -webkit-tap-highlight-color:transparent;min-width:50px;
+  position:relative;
 }
-.bn-item .bn-icon{font-size:22px;line-height:1;transition:transform .2s;}
-.bn-item.active{color:var(--blue);}
-.bn-item.active .bn-icon{transform:scale(1.12);}
+.bn-ic{font-size:22px;line-height:1;transition:transform .25s var(--spring);}
+.bn.active{color:var(--blue);}
+.bn.active .bn-ic{transform:scale(1.15);}
+.bn-indicator{
+  position:absolute;top:-2px;left:50%;transform:translateX(-50%);
+  width:18px;height:3px;border-radius:3px;
+  background:var(--blue);
+  transition:all .28s var(--spring);
+  opacity:0;transform:translateX(-50%) scaleX(0);
+}
+.bn.active .bn-indicator{opacity:1;transform:translateX(-50%) scaleX(1);}
 
+/* ════ FORMS ════ */
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+textarea,input[type=text],input[type=password],input[type=number],select{
+  width:100%;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:var(--r3);color:var(--text);
+  font-size:13px;padding:11px 13px;
+  font-family:inherit;outline:none;
+  resize:vertical;
+  transition:border-color .2s,background .2s;
+}
+textarea:focus,input:focus,select:focus{
+  border-color:var(--blue);
+  background:rgba(10,132,255,.07);
+}
+select option{background:#1c1c1e;color:#fff;}
+textarea.code{
+  min-height:320px;
+  font-family:'SF Mono','Fira Code',Consolas,monospace;
+  font-size:12px;line-height:1.6;
+}
+.hint{font-size:11px;color:var(--t2);margin-top:5px;line-height:1.4;}
+
+/* ════ BUTTONS ════ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 18px;border-radius:var(--r2);
+  font-size:13px;font-weight:700;border:none;cursor:pointer;
+  transition:all .22s var(--spring);font-family:inherit;
+}
+.btn:active{transform:scale(.96);}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;}
+.btn-primary{background:linear-gradient(135deg,#0A84FF,#006EE5);color:#fff;box-shadow:0 4px 16px rgba(10,132,255,.35);}
+.btn-primary:hover:not(:disabled){box-shadow:0 6px 22px rgba(10,132,255,.5);transform:translateY(-1px);}
+.btn-success{background:linear-gradient(135deg,#32D74B,#25A837);color:#000;}
+.btn-success:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 20px rgba(50,215,75,.35);}
+.btn-danger{background:linear-gradient(135deg,#FF453A,#D93025);color:#fff;box-shadow:0 4px 16px rgba(255,69,58,.3);}
+.btn-danger:hover:not(:disabled){transform:translateY(-1px);}
+.btn-ghost{background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.1);}
+.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.14);}
+.btn-warn{background:rgba(255,214,10,.12);color:var(--yellow);border:1px solid rgba(255,214,10,.25);}
+.btn-warn:hover:not(:disabled){background:rgba(255,214,10,.2);}
+.btn-sm{padding:8px 14px;font-size:12px;}
+.btn-xs{padding:5px 10px;font-size:11px;}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+/* ════ STATS SPECIFIC ════ */
+.act-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px;}
+
+/* ════ COMMAND CARDS ════ */
+.search-bar{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
+.search-input{
+  flex:1;min-width:160px;
+  background:rgba(255,255,255,.07);border:1px solid var(--border);
+  border-radius:var(--r2);color:var(--text);
+  font-size:13px;padding:10px 14px;font-family:inherit;
+  outline:none;transition:all .2s;
+}
+.search-input:focus{border-color:var(--blue);background:rgba(10,132,255,.07);}
+.cat-filter{display:flex;gap:5px;flex-wrap:wrap;}
+.cat-btn{
+  padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;
+  cursor:pointer;border:1px solid var(--border-2);
+  background:rgba(255,255,255,.06);color:var(--t2);
+  transition:all .18s;font-family:inherit;
+}
+.cat-btn:hover{background:rgba(255,255,255,.12);}
+.cat-btn.active{background:var(--blue);color:#fff;border-color:transparent;box-shadow:0 2px 12px rgba(10,132,255,.35);}
+.cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.cmd-card{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:var(--r2);padding:14px;
+  transition:all .22s var(--spring);
+  position:relative;
+}
+.cmd-card:hover{
+  background:rgba(255,255,255,.1);
+  border-color:rgba(10,132,255,.3);
+  transform:translateY(-2px);
+  box-shadow:0 8px 28px rgba(0,0,0,.3);
+}
+.cn{font-size:14px;font-weight:700;color:var(--blue);}
+.cc{font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:2px;letter-spacing:.3px;}
+.cd{font-size:12px;color:var(--t2);margin-top:6px;line-height:1.4;}
+.c-aliases{font-size:10px;color:var(--t3);margin-top:4px;font-family:'SF Mono',monospace;}
+.c-acts{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;}
+.cmd-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-top:6px;}
+.role-2{background:rgba(10,132,255,.14);color:var(--blue);}
+.role-3{background:rgba(255,214,10,.14);color:var(--yellow);}
+.role-0{background:rgba(50,215,75,.14);color:var(--green);}
+.cmd-ver{position:absolute;top:10px;left:10px;font-size:9px;color:var(--t3);}
+
+/* ════ LOG BOX ════ */
+.log-box{
+  background:rgba(0,0,0,.6);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:var(--r2);padding:14px;
+  font-family:'SF Mono','Fira Code',Consolas,monospace;
+  font-size:11px;line-height:1.7;height:420px;
+  overflow-y:auto;color:#7dff8a;
+}
+.log-line{word-break:break-all;}
+.log-ts{color:rgba(255,255,255,.25);margin-left:8px;}
+.log-controls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+
+/* ════ PROTECTION GRID ════ */
+.prot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(172px,1fr));gap:8px;}
+.prot-pill{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(50,215,75,.07);
+  border:1px solid rgba(50,215,75,.15);
+  border-radius:12px;padding:10px 13px;
+  font-size:12px;font-weight:600;
+  animation:protIn .3s var(--spring) both;
+}
+.prot-pill:hover{background:rgba(50,215,75,.12);}
+@keyframes protIn{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:scale(1);}}
+.p-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2.5s infinite;}
+
+/* ════ TOGGLE ════ */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 0;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.toggle-row:last-child{border-bottom:none;}
+.t-label{font-size:14px;font-weight:600;}
+.t-desc{font-size:12px;color:var(--t2);margin-top:2px;}
+.switch{position:relative;display:inline-block;width:50px;height:29px;flex-shrink:0;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{
+  position:absolute;cursor:pointer;inset:0;
+  background:rgba(255,255,255,.18);border-radius:29px;
+  transition:.28s var(--spring);
+}
+.slider::before{
+  content:'';position:absolute;
+  width:23px;height:23px;left:3px;top:3px;
+  background:#fff;border-radius:50%;
+  transition:.28s var(--spring);
+  box-shadow:0 2px 8px rgba(0,0,0,.4);
+}
+input:checked+.slider{background:var(--green);}
+input:checked+.slider::before{transform:translateX(21px);}
+
+/* ════ SETTINGS ════ */
+.settings-section{margin-bottom:22px;}
+.settings-section-title{
+  font-size:11px;font-weight:700;color:var(--t2);
+  text-transform:uppercase;letter-spacing:.6px;
+  margin-bottom:12px;padding-bottom:8px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+
+/* ════ TOAST ════ */
+#toast-container{
+  position:fixed;bottom:calc(var(--nav-h) + var(--safe-b) + 16px);
+  left:50%;transform:translateX(-50%);
+  z-index:9999;display:flex;flex-direction:column;
+  gap:8px;align-items:center;pointer-events:none;
+  width:max-content;max-width:90vw;
+}
+.toast{
+  background:rgba(28,28,30,.95);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;padding:11px 22px;
+  font-size:13px;font-weight:700;color:#fff;
+  animation:toastIn .32s var(--spring);
+  box-shadow:0 10px 40px rgba(0,0,0,.6);
+  white-space:nowrap;
+}
+.toast.success{border-color:rgba(50,215,75,.4);color:var(--green);}
+.toast.error{border-color:rgba(255,69,58,.4);color:var(--red);}
+.toast.warn{border-color:rgba(255,214,10,.4);color:var(--yellow);}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px) scale(.9);}to{opacity:1;transform:translateY(0) scale(1);}}
+
+/* ════ MODAL ════ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:8000;display:flex;align-items:center;justify-content:center;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  animation:fadeIn .2s;
+}
+.modal-overlay.hidden{display:none;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.modal{
+  background:rgba(18,18,22,.95);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:28px;padding:26px;
+  width:min(480px,94vw);max-height:90vh;overflow-y:auto;
+  box-shadow:0 40px 100px rgba(0,0,0,.7);
+  animation:modalIn .35s var(--spring);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.9) translateY(20px);}to{opacity:1;transform:scale(1) translateY(0);}}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;}
+.modal-close{background:rgba(255,255,255,.1);border:none;color:var(--t2);cursor:pointer;font-size:16px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:all .2s;}
+.modal-close:hover{background:rgba(255,69,58,.2);color:var(--red);}
+
+/* ════ ACTIVATION ════ */
+.thread-selector{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end;}
+.thread-selector .fg{flex:1;min-width:180px;margin-bottom:0;}
+.thread-mode-pills{display:flex;gap:6px;margin-bottom:12px;}
+.mode-pill{
+  padding:8px 16px;border-radius:22px;font-size:12px;font-weight:700;
+  cursor:pointer;border:1px solid var(--border);
+  background:transparent;color:var(--t2);font-family:inherit;
+  transition:all .2s;
+}
+.mode-pill.active-bl{background:rgba(255,69,58,.14);color:var(--red);border-color:rgba(255,69,58,.3);}
+.mode-pill.active-wl{background:rgba(50,215,75,.14);color:var(--green);border-color:rgba(50,215,75,.3);}
+.mode-pill:not(.active-bl):not(.active-wl):hover{background:rgba(255,255,255,.1);}
+.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px;}
+.act-card{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:var(--r2);padding:12px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;transition:all .2s;
+}
+.act-card:hover{background:rgba(255,255,255,.1);}
+.act-card.disabled-cmd{opacity:.5;}
+.ac-name{font-size:13px;font-weight:700;}
+.ac-cat{font-size:10px;color:var(--t2);margin-top:2px;}
+.ac-alias{font-size:10px;color:var(--t3);margin-top:2px;font-family:'SF Mono',monospace;}
+.act-save-bar{
+  position:sticky;bottom:0;
+  background:rgba(0,0,0,.8);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  padding:14px 0;margin-top:14px;
+  border-top:1px solid rgba(255,255,255,.08);
+  display:flex;gap:8px;align-items:center;
+}
+.thread-info-pill{
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:9px;padding:6px 12px;
+  font-size:11px;color:var(--t2);
+}
+
+/* ════ MESSAGES ════ */
+.msg-log{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+.msg-item{
+  background:rgba(255,255,255,.06);
+  border-radius:12px;padding:10px 13px;
+  font-size:12px;
+  border-right:3px solid var(--blue);
+  animation:msgIn .25s var(--spring);
+}
+@keyframes msgIn{from{opacity:0;transform:translateX(10px);}to{opacity:1;transform:translateX(0);}}
+.msg-body{font-weight:600;}
+.msg-meta{color:var(--t3);font-size:10px;margin-top:3px;}
+
+/* ════ EMPTY STATE ════ */
+.empty-state{text-align:center;padding:44px 20px;color:var(--t2);}
+.empty-state .es-icon{font-size:42px;margin-bottom:12px;opacity:.6;}
+.empty-state p{font-size:13px;}
+
+/* ════ SECTION ════ */
+.section{margin-bottom:14px;}
+
+/* ════ ADMIN TAGS ════ */
+.admin-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:6px 11px;
+  font-size:12px;font-family:'SF Mono',monospace;
+}
+.admin-tag-rm{
+  background:none;border:none;
+  color:var(--red);cursor:pointer;
+  font-size:14px;line-height:1;padding:0 2px;
+  transition:transform .2s;
+}
+.admin-tag-rm:hover{transform:scale(1.2);}
+
+/* ════ META GRID ════ */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.meta-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;}
+.meta-row .fg{flex:1;margin-bottom:0;}
+
+/* ════ EDITOR PANELS ════ */
+.editor-panel{display:none;}
+.editor-panel.active{
+  display:block;
+  animation:pageEnter .3s var(--spring);
+}
+.editor-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.editor-name{font-size:17px;font-weight:700;color:var(--blue);}
+
+/* ════ RESPONSIVE ════ */
 @media(max-width:700px){
-  body{padding-bottom:calc(var(--nav-h) + var(--safe-bottom) + 10px);}
+  body{padding-bottom:calc(var(--nav-h) + var(--safe-b) + 10px);}
   .bottom-nav{display:flex;}
-  .tabs{display:none;}
-  .main{padding:12px 10px;}
-  .stats-grid{gap:8px;}
-  .stat-card{padding:12px 8px;}
-  .stat-value{font-size:20px;}
-  .card{padding:14px;border-radius:18px;}
+  .tab-bar{display:none;}
+  .main{padding:12px 10px 6px;}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .stat{padding:13px 8px;}
+  .stat-v{font-size:20px;}
+  .card{padding:16px;border-radius:22px;}
   .btn{padding:11px 16px;font-size:13px;min-height:44px;}
-  .btn-sm{padding:9px 13px;font-size:12px;min-height:38px;}
-  .header-logo span{display:none;}
-  textarea,input[type=text],input[type=password],input[type=number]{padding:12px 14px;font-size:14px;}
+  .btn-sm{padding:9px 13px;font-size:12px;min-height:40px;}
+  .hdr-sub{display:none;}
+  textarea,input,select{padding:12px 14px;font-size:14px;}
   .cmd-grid{grid-template-columns:1fr 1fr;}
   .act-grid{grid-template-columns:1fr 1fr;}
-  .toggle-row{padding:13px 0;}
-  .t-info .t-label{font-size:15px;}
-  #toast-container{bottom:calc(var(--nav-h) + var(--safe-bottom) + 10px);}
-  .modal{border-radius:24px;padding:22px 18px;}
+  .toggle-row{padding:14px 0;}
+  .t-label{font-size:15px;}
+  #toast-container{bottom:calc(var(--nav-h) + var(--safe-b) + 10px);}
   .meta-grid{grid-template-columns:1fr;}
+  .bot-name{font-size:18px;}
+  .act-btns{grid-template-columns:1fr;}
 }
-/* ── Forms ── */
-.form-group{margin-bottom:12px;}
-.form-group label{display:block;font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
-textarea,input[type=text],input[type=password],input[type=number],select{width:100%;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:var(--r2);color:var(--text);font-size:13px;padding:10px 12px;font-family:inherit;outline:none;resize:vertical;transition:border-color .2s;}
-textarea:focus,input:focus,select:focus{border-color:var(--blue);background:rgba(255,255,255,.08);}
-select option{background:#1c1c1e;color:#fff;}
-textarea.code{min-height:300px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:12px;line-height:1.5;}
-.hint{font-size:11px;color:var(--t2);margin-top:4px;}
-/* ── Buttons ── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:var(--r2);font-size:13px;font-weight:600;border:none;cursor:pointer;transition:all .2s;font-family:inherit;text-decoration:none;}
-.btn:active{transform:scale(.97);}
-.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important;}
-.btn-primary{background:var(--blue);color:#fff;box-shadow:0 4px 14px rgba(10,132,255,.3);}
-.btn-primary:hover:not(:disabled){filter:brightness(1.1);}
-.btn-success{background:var(--green);color:#000;}
-.btn-success:hover:not(:disabled){filter:brightness(1.1);}
-.btn-danger{background:var(--red);color:#fff;box-shadow:0 4px 14px rgba(255,69,58,.3);}
-.btn-danger:hover:not(:disabled){filter:brightness(1.1);}
-.btn-ghost{background:var(--s1);color:var(--text);border:1px solid var(--bd);}
-.btn-ghost:hover:not(:disabled){background:var(--s2);}
-.btn-warn{background:rgba(255,214,10,.15);color:var(--yellow);border:1px solid rgba(255,214,10,.3);}
-.btn-warn:hover:not(:disabled){background:rgba(255,214,10,.25);}
-.btn-sm{padding:7px 13px;font-size:12px;}
-.btn-xs{padding:4px 9px;font-size:11px;}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
-/* ── Search & Filter ── */
-.search-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;}
-.search-input{flex:1;min-width:160px;background:rgba(255,255,255,.06);border:1px solid var(--bd);border-radius:var(--r2);color:var(--text);font-size:13px;padding:9px 12px;font-family:inherit;outline:none;transition:border-color .2s;}
-.search-input:focus{border-color:var(--blue);}
-.cat-filter{display:flex;gap:5px;flex-wrap:wrap;}
-.cat-btn{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:transparent;color:var(--t2);transition:all .15s;font-family:inherit;}
-.cat-btn:hover{background:var(--s2);}
-.cat-btn.active{background:var(--blue);color:#fff;border-color:transparent;}
-/* ── Commands grid ── */
-.cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:9px;}
-.cmd-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r2);padding:13px;transition:all .2s;position:relative;}
-.cmd-card:hover{background:var(--s2);border-color:var(--blue);}
-.cmd-card .cn{font-size:14px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:5px;}
-.cmd-card .cc{font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:3px;}
-.cmd-card .cd{font-size:12px;color:var(--t2);margin-top:5px;line-height:1.4;}
-.cmd-card .c-aliases{font-size:10px;color:var(--t3);margin-top:4px;font-family:monospace;}
-.cmd-card .c-actions{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap;}
-.cmd-badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;margin-top:5px;}
-.role-2{background:rgba(10,132,255,.15);color:var(--blue);}
-.role-3{background:rgba(255,214,10,.15);color:var(--yellow);}
-.role-0{background:rgba(48,209,88,.15);color:var(--green);}
-.cmd-version{position:absolute;top:10px;left:10px;font-size:9px;color:var(--t3);}
-/* ── Code editor ── */
-.editor-panel{display:none;}
-.editor-panel.active{display:block;}
-.editor-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
-.editor-name{font-size:16px;font-weight:700;color:var(--blue);}
-/* ── Meta editor ── */
-.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
-@media(max-width:500px){.meta-grid{grid-template-columns:1fr;}}
-.meta-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;}
-.meta-row .form-group{flex:1;margin-bottom:0;}
-/* ── Messages ── */
-.msg-log{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;}
-.msg-item{background:var(--s1);border-radius:9px;padding:8px 11px;font-size:12px;border-right:3px solid var(--blue);}
-.msg-body{color:var(--text);font-weight:500;}
-.msg-meta{color:var(--t2);font-size:10px;margin-top:2px;}
-/* ── Live Logs ── */
-.log-box{background:#0a0a0f;border:1px solid var(--bd);border-radius:var(--r2);padding:12px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:11px;line-height:1.6;height:400px;overflow-y:auto;color:#a0e0a0;}
-.log-box .log-line{word-break:break-all;}
-.log-box .log-ts{color:rgba(255,255,255,.3);margin-left:8px;}
-.log-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
-/* ── Protection ── */
-.prot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;}
-.prot-pill{display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:9px 11px;font-size:12px;font-weight:600;}
-.p-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 2.5s infinite;}
-/* ── Toggle ── */
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--bd);}
-.toggle-row:last-child{border-bottom:none;}
-.t-info .t-label{font-size:14px;font-weight:600;}
-.t-info .t-desc{font-size:12px;color:var(--t2);margin-top:2px;}
-.switch{position:relative;display:inline-block;width:46px;height:27px;flex-shrink:0;}
-.switch input{opacity:0;width:0;height:0;}
-.slider{position:absolute;cursor:pointer;inset:0;background:rgba(255,255,255,.15);border-radius:27px;transition:.3s;}
-.slider::before{content:'';position:absolute;width:21px;height:21px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 2px 5px rgba(0,0,0,.3);}
-input:checked+.slider{background:var(--green);}
-input:checked+.slider::before{transform:translateX(19px);}
-/* ── Settings input group ── */
-.settings-section{margin-bottom:20px;}
-.settings-section-title{font-size:12px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bd);}
-/* ── Toast ── */
-#toast-container{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:7px;align-items:center;pointer-events:none;}
-.toast{background:rgba(28,28,30,.96);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--bd);border-radius:14px;padding:10px 20px;font-size:13px;font-weight:600;color:#fff;animation:toastIn .3s ease;box-shadow:0 8px 30px rgba(0,0,0,.5);}
-.toast.success{border-color:var(--green);color:var(--green);}
-.toast.error{border-color:var(--red);color:var(--red);}
-.toast.warn{border-color:var(--yellow);color:var(--yellow);}
-@keyframes toastIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
-/* ── Section spacer ── */
-.section{margin-bottom:14px;}
-.logout-btn{background:transparent;border:none;color:var(--t2);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:6px;font-family:inherit;}
-.logout-btn:hover{color:var(--red);}
-/* ── Modal ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:8000;display:flex;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);}
-.modal-overlay.hidden{display:none;}
-.modal{background:#111;border:1px solid var(--bd);border-radius:20px;padding:24px;width:min(460px,94vw);max-height:90vh;overflow-y:auto;}
-.modal-title{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
-.modal-close{background:transparent;border:none;color:var(--t2);cursor:pointer;font-size:20px;padding:0 4px;font-family:inherit;}
-.modal-close:hover{color:var(--red);}
-/* ── Activation tab ── */
-.thread-selector{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end;}
-.thread-selector .form-group{flex:1;min-width:180px;margin-bottom:0;}
-.thread-mode-pills{display:flex;gap:6px;margin-bottom:12px;}
-.mode-pill{padding:7px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bd);background:transparent;color:var(--t2);font-family:inherit;transition:all .15s;}
-.mode-pill.active-bl{background:rgba(255,69,58,.15);color:var(--red);border-color:rgba(255,69,58,.3);}
-.mode-pill.active-wl{background:rgba(48,209,88,.15);color:var(--green);border-color:rgba(48,209,88,.3);}
-.mode-pill:not(.active-bl):not(.active-wl):hover{background:var(--s2);}
-.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px;}
-.act-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r2);padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;transition:background .2s;}
-.act-card:hover{background:var(--s2);}
-.act-card.disabled-cmd{opacity:.55;}
-.act-card .ac-name{font-size:13px;font-weight:700;color:var(--text);}
-.act-card .ac-cat{font-size:10px;color:var(--t2);margin-top:2px;}
-.act-card .ac-alias{font-size:10px;color:var(--t3);margin-top:2px;font-family:monospace;}
-.act-save-bar{position:sticky;bottom:0;background:rgba(0,0,0,.85);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);padding:12px 0;margin-top:12px;border-top:1px solid var(--bd);display:flex;gap:8px;align-items:center;}
-.thread-info-pill{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:6px 12px;font-size:11px;color:var(--t2);}
-.thread-info-pill b{color:var(--text);}
-/* ── Empty state ── */
-.empty-state{text-align:center;padding:40px 20px;color:var(--t2);}
-.empty-state .es-icon{font-size:36px;margin-bottom:10px;}
-.empty-state p{font-size:13px;}
+@media(max-width:380px){
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+  .cmd-grid{grid-template-columns:1fr;}
+  .act-grid{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
 
-<!-- ═══ BOTTOM NAV (mobile) ═══════════════════════════════════════════════ -->
-<nav class="bottom-nav" id="bottomNav">
-  <button class="bn-item active" data-tab="control">
-    <span class="bn-icon">🎮</span>التحكم
-  </button>
-  <button class="bn-item" data-tab="commands">
-    <span class="bn-icon">📦</span>الأوامر
-  </button>
-  <button class="bn-item" data-tab="activation">
-    <span class="bn-icon">🎛</span>تفعيل
-  </button>
-  <button class="bn-item" data-tab="editor">
-    <span class="bn-icon">✏️</span>محرر
-  </button>
-  <button class="bn-item" data-tab="settings">
-    <span class="bn-icon">⚙️</span>الإعدادات
-  </button>
-  <button class="bn-item" data-tab="cookies">
-    <span class="bn-icon">🍪</span>كوكيز
-  </button>
-</nav>
+<!-- Animated background -->
+<div class="bg-canvas" aria-hidden="true">
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+</div>
 
-<!-- ═══ LOGIN SCREEN ═══════════════════════════════════════════════════════ -->
+<!-- ═══ LOGIN ═══════════════════════════════════════════════════════════════ -->
 <div id="login-screen">
-  <div class="login-card">
-    <div class="login-logo">D</div>
+  <div class="lc">
+    <div class="lc-logo">D</div>
     <h2>DAVID V1</h2>
-    <p>أدخل كلمة السر للدخول للوحة التحكم</p>
-    <input class="login-input" id="pwd-input" type="password" placeholder="كلمة السر" autocomplete="current-password">
-    <button class="login-btn" onclick="doLogin()">🔓 دخول</button>
-    <div class="login-err" id="login-err"></div>
+    <p>أدخل كلمة السر للوصول للوحة التحكم</p>
+    <input id="pwd-input" type="password" placeholder="كلمة السر" autocomplete="current-password">
+    <button class="lc-btn" onclick="doLogin()">الدخول</button>
+    <div class="lc-err" id="login-err"></div>
   </div>
 </div>
 
 <!-- ═══ HEADER ════════════════════════════════════════════════════════════ -->
-<header class="header">
-  <div class="header-logo">
-    <div class="icon">D</div>
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-icon">D</div>
     <div>
-      <h1>DAVID V1</h1>
-      <span>DjamelBot Engine — By DJAMEL</span>
+      <div class="hdr-title">DAVID V1</div>
+      <div class="hdr-sub">DjamelBot Engine</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;">
+  <div class="hdr-right">
     <div class="status-pill offline" id="statusPill">
-      <div class="dot"></div>
+      <div class="status-dot"></div>
       <span id="statusText">غير متصل</span>
     </div>
     <button class="logout-btn" onclick="logout()">خروج</button>
   </div>
 </header>
 
+<!-- ═══ BOTTOM NAV (mobile) ══════════════════════════════════════════════ -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bn active" data-tab="control">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">🎮</span>التحكم
+  </button>
+  <button class="bn" data-tab="commands">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">📦</span>أوامر
+  </button>
+  <button class="bn" data-tab="activation">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">🎛</span>تفعيل
+  </button>
+  <button class="bn" data-tab="editor">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">✏️</span>محرر
+  </button>
+  <button class="bn" data-tab="settings">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">⚙️</span>إعدادات
+  </button>
+  <button class="bn" data-tab="cookies">
+    <div class="bn-indicator"></div>
+    <span class="bn-ic">🍪</span>كوكيز
+  </button>
+</nav>
+
 <!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
 <div class="main">
 
-  <!-- Bot Info -->
-  <div class="card section">
+  <!-- Bot Card -->
+  <div class="bot-card section">
     <div class="bot-row">
-      <div class="bot-avatar">D</div>
-      <div class="bot-details">
-        <h2 id="botName">DAVID V1</h2>
-        <div class="bd-sub" id="botStatus">جاري التحميل…</div>
-        <div class="bd-uid" id="botUID"></div>
+      <div class="bot-av">D</div>
+      <div>
+        <div class="bot-name" id="botName">DAVID V1</div>
+        <div class="bot-sub" id="botStatus">جاري التحميل…</div>
+        <div class="bot-uid" id="botUID"></div>
       </div>
     </div>
   </div>
 
-  <!-- Stats Grid -->
+  <!-- Stats -->
   <div class="stats-grid section">
-    <div class="stat-card c-blue"><div class="stat-icon">💬</div><div class="stat-value" id="s-msg">0</div><div class="stat-label">رسائل</div></div>
-    <div class="stat-card c-green"><div class="stat-icon">⚡</div><div class="stat-value" id="s-cmd">0</div><div class="stat-label">أوامر</div></div>
-    <div class="stat-card c-purple"><div class="stat-icon">👥</div><div class="stat-value" id="s-thr">0</div><div class="stat-label">غروبات</div></div>
-    <div class="stat-card c-yellow"><div class="stat-icon">👤</div><div class="stat-value" id="s-usr">0</div><div class="stat-label">مستخدمون</div></div>
-    <div class="stat-card c-cyan"><div class="stat-icon">⏱</div><div class="stat-value" id="s-up">—</div><div class="stat-label">وقت التشغيل</div></div>
-    <div class="stat-card c-orange"><div class="stat-icon">📦</div><div class="stat-value" id="s-ncmd">0</div><div class="stat-label">عدد الأوامر</div></div>
-    <div class="stat-card c-green"><div class="stat-icon">🛡</div><div class="stat-value">20</div><div class="stat-label">طبقات الحماية</div></div>
-    <div class="stat-card c-pink"><div class="stat-icon">💾</div><div class="stat-value" id="s-ram">—</div><div class="stat-label">RAM (MB)</div></div>
+    <div class="stat s-blue"><div class="stat-ic">💬</div><div class="stat-v" id="s-msg">0</div><div class="stat-l">رسائل</div></div>
+    <div class="stat s-green"><div class="stat-ic">⚡</div><div class="stat-v" id="s-cmd">0</div><div class="stat-l">أوامر</div></div>
+    <div class="stat s-purple"><div class="stat-ic">👥</div><div class="stat-v" id="s-thr">0</div><div class="stat-l">غروبات</div></div>
+    <div class="stat s-yellow"><div class="stat-ic">👤</div><div class="stat-v" id="s-usr">0</div><div class="stat-l">مستخدمون</div></div>
+    <div class="stat s-cyan"><div class="stat-ic">⏱</div><div class="stat-v" id="s-up">—</div><div class="stat-l">وقت التشغيل</div></div>
+    <div class="stat s-orange"><div class="stat-ic">📦</div><div class="stat-v" id="s-ncmd">0</div><div class="stat-l">عدد الأوامر</div></div>
+    <div class="stat s-teal"><div class="stat-ic">🛡</div><div class="stat-v">20</div><div class="stat-l">طبقات الحماية</div></div>
+    <div class="stat s-pink"><div class="stat-ic">💾</div><div class="stat-v" id="s-ram">—</div><div class="stat-l">RAM (MB)</div></div>
   </div>
 
-  <!-- Tabs -->
-  <div class="tabs">
+  <!-- Desktop Tabs -->
+  <div class="tab-bar">
     <button class="tab active" data-tab="control">🎮 التحكم</button>
     <button class="tab" data-tab="cookies">🍪 الكوكيز</button>
     <button class="tab" data-tab="commands">📦 الأوامر</button>
-    <button class="tab" data-tab="activation">🎛 تفعيل الأوامر</button>
-    <button class="tab" data-tab="editor">✏️ محرر الأوامر</button>
+    <button class="tab" data-tab="activation">🎛 التفعيل</button>
+    <button class="tab" data-tab="editor">✏️ المحرر</button>
     <button class="tab" data-tab="protection">🛡 الحماية</button>
     <button class="tab" data-tab="settings">⚙️ الإعدادات</button>
     <button class="tab" data-tab="messages">📨 الرسائل</button>
     <button class="tab" data-tab="logs">📋 السجلات</button>
   </div>
 
-  <!-- ─ Control ─────────────────────────────────────────── -->
+  <div class="page-wrap">
+
+  <!-- ─── Control ─────────────────────────────────────── -->
   <div class="tab-pane active" id="tab-control">
-    <div class="card section">
-      <div class="card-title">التحكم بالبوت</div>
-      <div class="btn-row">
-        <button class="btn btn-success" id="btn-restart" onclick="controlBot('restart')">🔄 إعادة تشغيل البوت</button>
-        <button class="btn btn-danger"  id="btn-stop"    onclick="controlBot('stop')">⏹ إيقاف</button>
-        <button class="btn btn-ghost"   onclick="refreshStats()">📊 تحديث</button>
-        <button class="btn btn-ghost"   onclick="pingBot()">🏓 Ping</button>
+    <div class="card">
+      <div class="card-title">التحكم الرئيسي</div>
+      <div class="act-btns">
+        <button class="btn btn-success" id="btn-restart" onclick="controlBot('restart')">🔄 إعادة تشغيل</button>
+        <button class="btn btn-danger" id="btn-stop" onclick="controlBot('stop')">⏹ إيقاف البوت</button>
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" onclick="refreshStats()">📊 تحديث الإحصائيات</button>
+        <button class="btn btn-ghost btn-sm" onclick="pingBot()">🏓 Ping</button>
       </div>
     </div>
   </div>
 
-  <!-- ─ Cookies ────────────────────────────────────────── -->
+  <!-- ─── Cookies ────────────────────────────────────── -->
   <div class="tab-pane" id="tab-cookies">
     <div class="card">
-      <div class="card-title">رفع الكوكيز — Cookie Upload</div>
-      <div class="form-group">
-        <label>الكوكيز (JSON / c3c / Netscape / Header String)</label>
+      <div class="card-title">رفع الكوكيز</div>
+      <div class="fg">
+        <label>الكوكيز — يدعم JSON / c3c / Netscape / Header String</label>
         <textarea id="cookieInput" rows="7" placeholder='[{"key":"c_user","value":"..."},{"key":"xs","value":"..."}]&#10;أو: c_user=123; xs=abc&#10;أو: صيغة c3c JSON كاملة'></textarea>
         <div class="hint">✅ يدعم JSON Array، c3c، Netscape، وصيغة key=value</div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="btn-upload-cookies" onclick="uploadCookies()">📤 رفع وتسجيل الدخول</button>
-        <button class="btn btn-ghost"   onclick="document.getElementById('cookieInput').value=''">🗑 مسح</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('cookieInput').value=''">🗑 مسح</button>
       </div>
     </div>
   </div>
 
-  <!-- ─ Commands ───────────────────────────────────────── -->
+  <!-- ─── Commands ──────────────────────────────────── -->
   <div class="tab-pane" id="tab-commands">
     <div class="card">
       <div class="card-title">قائمة الأوامر — <span id="cmdTotal">0</span> أمر</div>
@@ -449,21 +788,23 @@ input:checked+.slider::before{transform:translateX(19px);}
         <input class="search-input" id="cmd-search" type="text" placeholder="🔍 بحث في الأوامر…" oninput="filterCommands()">
         <div class="cat-filter" id="cat-filter"></div>
       </div>
-      <div class="cmd-grid" id="cmdGrid"><div class="empty-state"><div class="es-icon">📦</div><p>جاري التحميل…</p></div></div>
+      <div class="cmd-grid" id="cmdGrid">
+        <div class="empty-state"><div class="es-icon">📦</div><p>جاري التحميل…</p></div>
+      </div>
     </div>
   </div>
 
-  <!-- ─ Activation ─────────────────────────────────────── -->
+  <!-- ─── Activation ────────────────────────────────── -->
   <div class="tab-pane" id="tab-activation">
     <div class="card section">
       <div class="card-title">🎛 تفعيل / تعطيل الأوامر لكل غروب</div>
-      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;">يمكنك تحديد الأوامر المسموح بها أو المحظورة لكل غروب على حدة. البلاك‌ليست تعطّل المحدد فقط، والوايت‌ليست تُفعّل المحدد فقط.</p>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;">حدد الأوامر المسموح بها أو المحظورة لكل غروب. البلاك‌ليست تعطّل المحدد فقط، والوايت‌ليست تُفعّل المحدد فقط.</p>
       <div class="thread-selector">
-        <div class="form-group">
+        <div class="fg">
           <label>اختر غروب أو أدخل Thread ID</label>
           <div style="display:flex;gap:6px;">
             <input type="text" id="act-tid" placeholder="Thread ID مثل: 12345678" style="flex:1;">
-            <button class="btn btn-ghost btn-sm" onclick="loadThreadsForAct()">📋 قائمة الغروبات</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadThreadsForAct()">📋 قائمة</button>
           </div>
         </div>
         <button class="btn btn-primary btn-sm" style="margin-bottom:0;align-self:flex-end;" onclick="loadActConfig()">تحميل</button>
@@ -471,9 +812,7 @@ input:checked+.slider::before{transform:translateX(19px);}
       <div id="threads-list-act" style="display:none;margin-bottom:12px;"></div>
       <div id="act-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-          <div>
-            <div class="thread-info-pill"><b>الغروب:</b> <span id="act-tid-display">—</span></div>
-          </div>
+          <div class="thread-info-pill"><b>الغروب:</b> <span id="act-tid-display">—</span></div>
           <div class="thread-mode-pills">
             <button class="mode-pill" id="mode-bl" onclick="setActMode('blacklist')">⛔ تعطيل المحدد</button>
             <button class="mode-pill" id="mode-wl" onclick="setActMode('whitelist')">✅ تفعيل المحدد فقط</button>
@@ -482,43 +821,32 @@ input:checked+.slider::before{transform:translateX(19px);}
         <div style="margin-bottom:8px;font-size:12px;color:var(--t2);" id="act-mode-hint"></div>
         <div class="act-grid" id="actGrid"></div>
         <div class="act-save-bar">
-          <button class="btn btn-primary" onclick="saveActConfig()">💾 حفظ الإعدادات</button>
-          <button class="btn btn-danger btn-sm" onclick="resetActConfig()">🗑 إعادة تعيين (تفعيل الكل)</button>
+          <button class="btn btn-primary" onclick="saveActConfig()">💾 حفظ</button>
+          <button class="btn btn-danger btn-sm" onclick="resetActConfig()">🗑 إعادة تعيين</button>
           <span style="font-size:11px;color:var(--t2);" id="act-save-hint"></span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─ Editor ────────────────────────────────────────── -->
+  <!-- ─── Editor ─────────────────────────────────────── -->
   <div class="tab-pane" id="tab-editor">
     <div class="card section">
-      <div class="card-title">محرر الأوامر المباشر (Hot-Reload)</div>
-      <div class="form-group">
+      <div class="card-title">محرر الأوامر — Hot Reload</div>
+      <div class="fg">
         <label>اختر الأمر</label>
         <select id="editor-select" onchange="onEditorSelectChange()">
           <option value="">— اختر أمراً —</option>
         </select>
       </div>
     </div>
-
     <div class="editor-panel card section" id="editor-meta-panel">
       <div class="card-title">✏️ تعديل سريع للمعلومات</div>
       <div class="meta-grid">
-        <div class="form-group">
-          <label>اسم الأمر الجديد (Rename)</label>
-          <input type="text" id="meta-name" placeholder="مثل: groupimage">
-        </div>
-        <div class="form-group">
-          <label>الوصف</label>
-          <input type="text" id="meta-desc" placeholder="وصف مختصر للأمر">
-        </div>
-        <div class="form-group">
-          <label>الاختصارات (aliases) مفصولة بفاصلة</label>
-          <input type="text" id="meta-aliases" placeholder="مثل: img, صورة, gcimg">
-        </div>
-        <div class="form-group">
-          <label>مستوى الصلاحية</label>
+        <div class="fg"><label>اسم الأمر الجديد</label><input type="text" id="meta-name" placeholder="مثل: groupimage"></div>
+        <div class="fg"><label>الوصف</label><input type="text" id="meta-desc" placeholder="وصف مختصر"></div>
+        <div class="fg"><label>الاختصارات (مفصولة بفاصلة)</label><input type="text" id="meta-aliases" placeholder="img, صورة, gcimg"></div>
+        <div class="fg"><label>مستوى الصلاحية</label>
           <select id="meta-role">
             <option value="0">👤 الجميع (0)</option>
             <option value="2" selected>🔑 أدمن (2)</option>
@@ -526,16 +854,12 @@ input:checked+.slider::before{transform:translateX(19px);}
           </select>
         </div>
       </div>
-      <div class="form-group">
-        <label>طريقة الاستخدام (guide)</label>
-        <input type="text" id="meta-guide" placeholder="مثل: {pn} [نص] — تشغيل | {pn} off — إيقاف">
-      </div>
+      <div class="fg"><label>طريقة الاستخدام</label><input type="text" id="meta-guide" placeholder="{pn} [نص] — تشغيل | {pn} off — إيقاف"></div>
       <div class="btn-row">
-        <button class="btn btn-warn btn-sm" id="btn-save-meta" onclick="saveCmdMeta()">⚡ تطبيق التغييرات الفورية</button>
+        <button class="btn btn-warn btn-sm" id="btn-save-meta" onclick="saveCmdMeta()">⚡ تطبيق</button>
         <span style="font-size:11px;color:var(--t2);" id="meta-hint"></span>
       </div>
     </div>
-
     <div class="editor-panel card" id="editor-panel">
       <div class="editor-header">
         <div class="editor-name" id="editor-cmd-name">—</div>
@@ -549,29 +873,29 @@ input:checked+.slider::before{transform:translateX(19px);}
     </div>
   </div>
 
-  <!-- ─ Protection ─────────────────────────────────────── -->
+  <!-- ─── Protection ────────────────────────────────── -->
   <div class="tab-pane" id="tab-protection">
     <div class="card">
-      <div class="card-title">🛡 20 طبقة حماية — نشطة جميعها</div>
+      <div class="card-title">🛡 20 طبقة حماية — جميعها نشطة</div>
       <div class="prot-grid" id="protGrid"></div>
     </div>
   </div>
 
-  <!-- ─ Settings ───────────────────────────────────────── -->
+  <!-- ─── Settings ──────────────────────────────────── -->
   <div class="tab-pane" id="tab-settings">
-    <div class="card" style="margin-bottom:12px;">
+    <div class="card section">
       <div class="card-title">الإعدادات العامة</div>
       <div class="settings-section">
         <div class="settings-section-title">معلومات البوت</div>
-        <div class="form-group"><label>اسم البوت</label><input type="text" id="cfg-botName" value="DAVID V1"></div>
-        <div class="form-group"><label>Prefix (بادئة الأوامر)</label><input type="text" id="cfg-prefix" value="/" maxlength="3"></div>
-        <div class="form-group"><label>كلمة سر لوحة التحكم</label><input type="password" id="cfg-dashpwd" placeholder="الكلمة الحالية محفوظة"></div>
+        <div class="fg"><label>اسم البوت</label><input type="text" id="cfg-botName" value="DAVID V1"></div>
+        <div class="fg"><label>Prefix — بادئة الأوامر</label><input type="text" id="cfg-prefix" value="/" maxlength="3"></div>
+        <div class="fg"><label>كلمة سر لوحة التحكم</label><input type="password" id="cfg-dashpwd" placeholder="اتركه فارغاً للإبقاء على الحالي"></div>
       </div>
       <div class="settings-section">
         <div class="settings-section-title">أنظمة الحماية</div>
-        <div class="toggle-row"><div class="t-info"><div class="t-label">Stealth Mode</div><div class="t-desc">محاكاة تصفح بشري + تدوير UA</div></div><label class="switch"><input type="checkbox" id="cfg-stealth" checked><span class="slider"></span></label></div>
-        <div class="toggle-row"><div class="t-info"><div class="t-label">Keep Alive</div><div class="t-desc">ping دوري للحفاظ على الجلسة</div></div><label class="switch"><input type="checkbox" id="cfg-keepalive" checked><span class="slider"></span></label></div>
-        <div class="toggle-row"><div class="t-info"><div class="t-label">MQTT Health Check</div><div class="t-desc">إعادة الاتصال تلقائياً</div></div><label class="switch"><input type="checkbox" id="cfg-mqtt" checked><span class="slider"></span></label></div>
+        <div class="toggle-row"><div><div class="t-label">Stealth Mode</div><div class="t-desc">محاكاة تصفح بشري + تدوير UA</div></div><label class="switch"><input type="checkbox" id="cfg-stealth" checked><span class="slider"></span></label></div>
+        <div class="toggle-row"><div><div class="t-label">Keep Alive</div><div class="t-desc">ping دوري للحفاظ على الجلسة</div></div><label class="switch"><input type="checkbox" id="cfg-keepalive" checked><span class="slider"></span></label></div>
+        <div class="toggle-row"><div><div class="t-label">MQTT Health Check</div><div class="t-desc">إعادة الاتصال تلقائياً عند الانقطاع</div></div><label class="switch"><input type="checkbox" id="cfg-mqtt" checked><span class="slider"></span></label></div>
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveSettings()">💾 حفظ الإعدادات</button>
@@ -580,29 +904,24 @@ input:checked+.slider::before{transform:translateX(19px);}
       <div class="hint" id="settings-hint" style="margin-top:8px;"></div>
     </div>
 
-    <!-- ─ Admin Management ─ -->
     <div class="card">
-      <div class="card-title">👑 إدارة الأدمن — البوت يرد على هؤلاء فقط</div>
+      <div class="card-title">👑 إدارة الأدمن</div>
       <div class="settings-section">
         <div class="settings-section-title">معرّف المالك (Owner ID)</div>
-        <div class="form-group">
-          <label>معرف المالك — صلاحيات كاملة</label>
-          <input type="text" id="adm-ownerID" placeholder="100012345678">
-          <div class="hint">معرف Facebook الخاص بك (UID)</div>
-        </div>
+        <div class="fg"><label>معرف Facebook الخاص بك</label><input type="text" id="adm-ownerID" placeholder="100012345678"></div>
       </div>
       <div class="settings-section">
-        <div class="settings-section-title">سوبر أدمن (Super Admins)</div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <div class="settings-section-title">سوبر أدمن</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
           <input type="text" id="adm-super-input" placeholder="أدخل UID ثم اضغط إضافة" style="flex:1;">
           <button class="btn btn-primary btn-sm" onclick="addSuperAdmin()">+ إضافة</button>
         </div>
         <div id="adm-super-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;"></div>
       </div>
       <div class="settings-section">
-        <div class="settings-section-title">أدمن البوت (Bot Admins)</div>
-        <div class="hint" style="margin-bottom:8px;">⚠️ البوت لا يرد إلا على المالك والأدمن المضافين هنا فقط</div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <div class="settings-section-title">أدمن البوت</div>
+        <div class="hint" style="margin-bottom:10px;">⚠️ البوت يرد فقط على المالك والأدمن المضافين</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
           <input type="text" id="adm-admin-input" placeholder="أدخل UID ثم اضغط إضافة" style="flex:1;">
           <button class="btn btn-primary btn-sm" onclick="addAdmin()">+ إضافة</button>
         </div>
@@ -616,15 +935,17 @@ input:checked+.slider::before{transform:translateX(19px);}
     </div>
   </div>
 
-  <!-- ─ Messages ────────────────────────────────────────── -->
+  <!-- ─── Messages ──────────────────────────────────── -->
   <div class="tab-pane" id="tab-messages">
     <div class="card">
       <div class="card-title">آخر الرسائل المستقبلة</div>
-      <div class="msg-log" id="msgLog"><div class="msg-item"><div class="msg-body" style="color:var(--t2)">لا توجد رسائل بعد…</div></div></div>
+      <div class="msg-log" id="msgLog">
+        <div class="msg-item"><div class="msg-body" style="color:var(--t2)">لا توجد رسائل بعد…</div></div>
+      </div>
     </div>
   </div>
 
-  <!-- ─ Live Logs ───────────────────────────────────────── -->
+  <!-- ─── Live Logs ─────────────────────────────────── -->
   <div class="tab-pane" id="tab-logs">
     <div class="card">
       <div class="card-title">السجلات الحية</div>
@@ -638,11 +959,15 @@ input:checked+.slider::before{transform:translateX(19px);}
     </div>
   </div>
 
+  </div><!-- /page-wrap -->
 </div><!-- /main -->
+
 <div id="toast-container"></div>
 
 <script>
-// ─── State ──────────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════
+   DAVID V1 — Dashboard Logic
+   ═══════════════════════════════════════════════════ */
 let _token      = localStorage.getItem("david_token") || "";
 let _socket     = null;
 let _autoScroll = true;
@@ -652,34 +977,40 @@ let _activeCat  = "all";
 let _actMode    = "blacklist";
 let _actSelected = new Set();
 let _actTid     = "";
+let _superAdmins = [];
+let _admins      = [];
+let _prevTab    = "control";
 
-// ─── Login ──────────────────────────────────────────────────────────────────
+/* ─── Login ──────────────────────────────────────── */
 async function doLogin() {
   const pwd = document.getElementById("pwd-input").value.trim();
   if (!pwd) return;
-  const btn = document.querySelector(".login-btn");
+  const btn = document.querySelector(".lc-btn");
   const errEl = document.getElementById("login-err");
   errEl.textContent = "";
   btn.disabled = true; btn.textContent = "⏳ جاري…";
   try {
-    const r = await apiFetch("/api/login", { method: "POST", body: JSON.stringify({ password: pwd }) }, false);
-    btn.disabled = false; btn.textContent = "🔓 دخول";
+    const r = await apiFetch("/api/login", { method:"POST", body:JSON.stringify({ password:pwd }) }, false);
+    btn.disabled = false; btn.textContent = "الدخول";
     if (r && r.ok) {
       _token = r.token;
       localStorage.setItem("david_token", _token);
+      const ls = document.getElementById("login-screen");
+      ls.style.animation = "fadeIn .3s ease reverse";
+      setTimeout(() => { ls.classList.add("hidden"); ls.style.animation = ""; }, 280);
       showApp();
     } else {
       errEl.textContent = (r && r.error) ? r.error : "كلمة السر خاطئة";
     }
   } catch(e) {
-    btn.disabled = false; btn.textContent = "🔓 دخول";
+    btn.disabled = false; btn.textContent = "الدخول";
     errEl.textContent = "خطأ في الاتصال: " + e.message;
   }
 }
 document.getElementById("pwd-input").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 
 async function logout() {
-  await apiFetch("/api/logout", { method: "POST" });
+  await apiFetch("/api/logout", { method:"POST" });
   _token = ""; localStorage.removeItem("david_token");
   if (_socket) { _socket.disconnect(); _socket = null; }
   document.getElementById("login-screen").classList.remove("hidden");
@@ -701,22 +1032,22 @@ async function showApp() {
   loadProtections();
 }
 
-// ─── Socket.io ───────────────────────────────────────────────────────────────
+/* ─── Socket.io ──────────────────────────────────── */
 function initSocket() {
   if (_socket) _socket.disconnect();
   _socket = io({ query: { token: _token } });
-  _socket.on("connect",        () => {});
-  _socket.on("disconnect",     () => setStatus("offline", "انقطع الاتصال"));
-  _socket.on("bot-status",     d => onBotStatus(d));
-  _socket.on("stats-update",   d => renderStats(d));
-  _socket.on("log-line",       d => addLogLine(d));
-  _socket.on("log-history",    arr => { arr.forEach(addLogLine); });
+  _socket.on("connect",       () => {});
+  _socket.on("disconnect",    () => setStatus("offline","انقطع الاتصال"));
+  _socket.on("bot-status",    d => onBotStatus(d));
+  _socket.on("stats-update",  d => renderStats(d));
+  _socket.on("log-line",      d => addLogLine(d));
+  _socket.on("log-history",   arr => { arr.forEach(addLogLine); });
   _socket.on("command-updated",d => { toast(`✅ تم تحديث /${d.name}`, "success"); refreshCmdsIfOpen(); });
-  _socket.on("config-reloaded",() => toast("🔄 الإعدادات تم تحديثها", "success"));
-  _socket.on("pong-bot",       d => toast(`🏓 Ping: ${Date.now() - d.ts}ms`, "success"));
+  _socket.on("config-reloaded",() => toast("🔄 تم تحديث الإعدادات", "success"));
+  _socket.on("pong-bot",      d => toast(`🏓 Ping: ${Date.now() - d.ts}ms`, "success"));
 }
 
-// ─── Status ──────────────────────────────────────────────────────────────────
+/* ─── Status ─────────────────────────────────────── */
 function onBotStatus(d) {
   const s = d.status || (d.online ? "online" : "offline");
   setStatus(s, d.message || (s === "online" ? "متصل ✔" : "غير متصل"));
@@ -734,7 +1065,7 @@ function setStatus(s, msg) {
   if (msg) setText("botStatus", msg);
 }
 
-// ─── Stats ───────────────────────────────────────────────────────────────────
+/* ─── Stats ──────────────────────────────────────── */
 function fmtUptime(ms) {
   if (!ms) return "—";
   const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60), d = Math.floor(h/24);
@@ -745,16 +1076,16 @@ function fmtUptime(ms) {
 }
 function renderStats(d) {
   if (!d) return;
-  setText("s-msg",  d.totalMessages  || 0);
-  setText("s-cmd",  d.totalCommands  || 0);
-  setText("s-thr",  d.activeThreads  || 0);
-  setText("s-usr",  d.activeUsers    || 0);
+  setText("s-msg",  d.totalMessages || 0);
+  setText("s-cmd",  d.totalCommands || 0);
+  setText("s-thr",  d.activeThreads || 0);
+  setText("s-usr",  d.activeUsers   || 0);
   setText("s-up",   fmtUptime(d.uptime));
-  setText("s-ncmd", d.commands       || 0);
-  setText("s-ram",  d.memMB          || "—");
+  setText("s-ncmd", d.commands      || 0);
+  setText("s-ram",  d.memMB         || "—");
   if (d.botID)   setText("botUID",  "UID: " + d.botID);
   if (d.botName) setText("botName", d.botName);
-  if (d.online != null && d.online) setStatus("online", "متصل ✔");
+  if (d.online != null && d.online) setStatus("online","متصل ✔");
 }
 function setText(id, v) {
   const el = document.getElementById(id);
@@ -765,21 +1096,21 @@ async function refreshStats() {
   if (d) renderStats(d);
 }
 
-// ─── API ─────────────────────────────────────────────────────────────────────
+/* ─── API ────────────────────────────────────────── */
 async function apiFetch(url, opts = {}, useToken = true) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const h = { "Content-Type": "application/json", ...(opts.headers || {}) };
+    const h = { "Content-Type":"application/json", ...(opts.headers || {}) };
     if (useToken && _token) h["x-david-token"] = _token;
-    const r = await fetch(url, { ...opts, headers: h, signal: controller.signal });
+    const r = await fetch(url, { ...opts, headers:h, signal:controller.signal });
     clearTimeout(timer);
-    if (r.status === 401) { showLoginAgain(); return { ok: false, error: "Unauthorized" }; }
+    if (r.status === 401) { showLoginAgain(); return { ok:false, error:"Unauthorized" }; }
     return await r.json();
-  } catch (e) {
+  } catch(e) {
     clearTimeout(timer);
-    if (e.name === "AbortError") return { ok: false, error: "انتهت مهلة الاتصال" };
-    return { ok: false, error: e.message };
+    if (e.name === "AbortError") return { ok:false, error:"انتهت مهلة الاتصال" };
+    return { ok:false, error:e.message };
   }
 }
 function showLoginAgain() {
@@ -787,13 +1118,13 @@ function showLoginAgain() {
   document.getElementById("login-screen").classList.remove("hidden");
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
+/* ─── Actions ────────────────────────────────────── */
 async function uploadCookies() {
   const raw = document.getElementById("cookieInput").value.trim();
   if (!raw) { toast("اكتب الكوكيز أولاً", "error"); return; }
   const btn = document.getElementById("btn-upload-cookies");
   btn.disabled = true; btn.textContent = "⏳ جاري…";
-  const r = await apiFetch("/api/cookies", { method: "POST", body: JSON.stringify({ cookies: raw }) });
+  const r = await apiFetch("/api/cookies", { method:"POST", body:JSON.stringify({ cookies:raw }) });
   btn.disabled = false; btn.textContent = "📤 رفع وتسجيل الدخول";
   if (r.ok) { toast(`✅ تم رفع ${r.count} كوكي — جاري تسجيل الدخول…`, "success"); setStatus("connecting","يتصل…"); }
   else toast("❌ " + (r.error || "فشل"), "error");
@@ -803,16 +1134,16 @@ async function controlBot(action) {
   if (action === "stop" && !confirm("⚠️ هل أنت متأكد من إيقاف البوت؟")) return;
   const btn = document.getElementById(action === "restart" ? "btn-restart" : "btn-stop");
   if (btn) { btn.disabled = true; btn.textContent = "⏳…"; }
-  const r = await apiFetch("/api/control", { method: "POST", body: JSON.stringify({ action }) });
-  if (btn) { btn.disabled = false; btn.textContent = action === "restart" ? "🔄 إعادة تشغيل البوت" : "⏹ إيقاف"; }
+  const r = await apiFetch("/api/control", { method:"POST", body:JSON.stringify({ action }) });
+  if (btn) { btn.disabled = false; btn.textContent = action === "restart" ? "🔄 إعادة تشغيل" : "⏹ إيقاف البوت"; }
   if (r.ok) {
-    if (action === "restart") { toast("🔄 جاري إعادة تشغيل البوت…", "warn"); setStatus("connecting","يعيد التشغيل…"); }
+    if (action === "restart") { toast("🔄 جاري إعادة التشغيل…", "warn"); setStatus("connecting","يعيد التشغيل…"); }
     else toast("⏹ تم إيقاف البوت", "error");
   } else toast("❌ " + (r.error || "فشل"), "error");
 }
 function pingBot() { if (_socket) _socket.emit("ping-bot"); }
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
+/* ─── Commands ───────────────────────────────────── */
 const CAT_ICONS = { management:"⚙️", media:"🎵", info:"ℹ️", fun:"😄", other:"📌" };
 const CAT_NAMES = { management:"إدارة", media:"وسائط", info:"معلومات", fun:"ترفيه", other:"أخرى" };
 
@@ -826,55 +1157,46 @@ async function loadCommands() {
   populateEditorSelect(_allCmds);
   return _allCmds;
 }
-
 function buildCatFilter() {
   const cats = ["all", ...new Set(_allCmds.map(c => c.category || "other"))];
   const el = document.getElementById("cat-filter");
   el.innerHTML = cats.map(cat => {
     const label = cat === "all" ? "الكل" : (CAT_NAMES[cat] || cat);
-    const icon = cat === "all" ? "📋" : (CAT_ICONS[cat] || "📌");
+    const icon  = cat === "all" ? "📋" : (CAT_ICONS[cat] || "📌");
     return `<button class="cat-btn ${cat === _activeCat ? "active" : ""}" onclick="setCat('${cat}')">${icon} ${label}</button>`;
   }).join("");
 }
-
-function setCat(cat) {
-  _activeCat = cat;
-  buildCatFilter();
-  filterCommands();
-}
-
+function setCat(cat) { _activeCat = cat; buildCatFilter(); filterCommands(); }
 function filterCommands() {
   const q = (document.getElementById("cmd-search")?.value || "").toLowerCase().trim();
   const filtered = _allCmds.filter(c => {
     const inCat = _activeCat === "all" || (c.category || "other") === _activeCat;
     if (!inCat) return false;
     if (!q) return true;
-    return c.name.includes(q) ||
-           (c.description || "").toLowerCase().includes(q) ||
-           (c.aliases || []).some(a => String(a).toLowerCase().includes(q));
+    return c.name.includes(q) || (c.description||"").toLowerCase().includes(q) ||
+           (c.aliases||[]).some(a => String(a).toLowerCase().includes(q));
   });
   renderCmdGrid(filtered);
 }
-
 function renderCmdGrid(cmds) {
   const grid = document.getElementById("cmdGrid");
   if (!cmds.length) {
     grid.innerHTML = '<div class="empty-state"><div class="es-icon">🔍</div><p>لا توجد أوامر تطابق البحث</p></div>';
     return;
   }
-  grid.innerHTML = cmds.map(c => {
+  grid.innerHTML = cmds.map((c,i) => {
     const roleClass = c.role >= 3 ? "role-3" : c.role >= 2 ? "role-2" : "role-0";
     const roleLabel = c.role >= 3 ? "👑 Owner" : c.role >= 2 ? "🔑 Admin" : "👤 الجميع";
-    const catIcon   = CAT_ICONS[c.category || "other"] || "📌";
-    const aliases   = (c.aliases || []).filter(Boolean);
-    return `<div class="cmd-card">
-      <div class="cmd-version">v${c.version || "1.0"}</div>
+    const catIcon   = CAT_ICONS[c.category||"other"] || "📌";
+    const aliases   = (c.aliases||[]).filter(Boolean);
+    return `<div class="cmd-card" style="animation-delay:${i*20}ms">
+      <div class="cmd-ver">v${c.version||"1.0"}</div>
       <div class="cn">${catIcon} /${esc(c.name)}</div>
-      <div class="cc">${esc(CAT_NAMES[c.category] || c.category || "أخرى")}</div>
-      <div class="cd">${esc((c.description || "").slice(0,60))}</div>
+      <div class="cc">${esc(CAT_NAMES[c.category]||c.category||"أخرى")}</div>
+      <div class="cd">${esc((c.description||"").slice(0,60))}</div>
       ${aliases.length ? `<div class="c-aliases">/ ${aliases.slice(0,3).join(" / ")}</div>` : ""}
       <span class="cmd-badge ${roleClass}">${roleLabel}</span>
-      <div class="c-actions">
+      <div class="c-acts">
         <button class="btn btn-xs btn-ghost" onclick="openEditorFor('${c.name}')">✏️ تعديل</button>
         <button class="btn btn-xs btn-primary" onclick="quickMetaFor('${c.name}')">⚡ سريع</button>
         <button class="btn btn-xs btn-ghost" onclick="copyName('${c.name}')">📋</button>
@@ -882,40 +1204,34 @@ function renderCmdGrid(cmds) {
     </div>`;
   }).join("");
 }
-
 function copyName(name) {
-  navigator.clipboard?.writeText("/" + name).then(() => toast(`📋 نسخ: /${name}`, "success")).catch(() => toast("/" + name, "success"));
+  navigator.clipboard?.writeText("/" + name)
+    .then(() => toast(`📋 نسخ: /${name}`, "success"))
+    .catch(() => toast("/" + name, "success"));
 }
-
 function refreshCmdsIfOpen() {
-  const tab = document.querySelector('[data-tab="commands"]');
-  if (tab?.classList.contains("active") || document.getElementById("tab-commands")?.classList.contains("active")) {
-    loadCommands();
-  }
+  if (document.getElementById("tab-commands")?.classList.contains("active")) loadCommands();
 }
 
-// ─── Editor ──────────────────────────────────────────────────────────────────
+/* ─── Editor ─────────────────────────────────────── */
 function populateEditorSelect(cmds) {
   const sel = document.getElementById("editor-select");
   const cur = sel.value;
   sel.innerHTML = '<option value="">— اختر أمراً —</option>' +
-    cmds.map(c => `<option value="${c.name}">${CAT_ICONS[c.category||"other"] || "📌"} /${c.name}</option>`).join("");
+    cmds.map(c => `<option value="${c.name}">${CAT_ICONS[c.category||"other"]||"📌"} /${c.name}</option>`).join("");
   if (cur && cmds.find(c => c.name === cur)) sel.value = cur;
 }
-
 function openEditorFor(name) {
-  document.querySelector('[data-tab="editor"]').click();
+  switchTab("editor");
   document.getElementById("editor-select").value = name;
   onEditorSelectChange();
 }
-
 function quickMetaFor(name) {
-  document.querySelector('[data-tab="editor"]').click();
+  switchTab("editor");
   document.getElementById("editor-select").value = name;
   onEditorSelectChange();
-  setTimeout(() => document.getElementById("meta-name")?.focus(), 300);
+  setTimeout(() => document.getElementById("meta-name")?.focus(), 350);
 }
-
 function onEditorSelectChange() {
   const name = document.getElementById("editor-select").value;
   if (!name) {
@@ -925,16 +1241,15 @@ function onEditorSelectChange() {
   }
   const cmd = _allCmds.find(c => c.name === name);
   if (cmd) {
-    document.getElementById("meta-name").value = cmd.name;
-    document.getElementById("meta-desc").value = cmd.description || "";
-    document.getElementById("meta-aliases").value = (cmd.aliases || []).filter(Boolean).join(", ");
-    document.getElementById("meta-role").value = String(cmd.role ?? 2);
+    document.getElementById("meta-name").value     = cmd.name;
+    document.getElementById("meta-desc").value     = cmd.description || "";
+    document.getElementById("meta-aliases").value  = (cmd.aliases||[]).filter(Boolean).join(", ");
+    document.getElementById("meta-role").value     = String(cmd.role ?? 2);
     document.getElementById("meta-hint").textContent = "";
     document.getElementById("editor-meta-panel").classList.add("active");
   }
   loadCmdSource();
 }
-
 async function loadCmdSource() {
   const name = document.getElementById("editor-select").value;
   if (!name) { document.getElementById("editor-panel").classList.remove("active"); return; }
@@ -944,24 +1259,21 @@ async function loadCmdSource() {
   document.getElementById("editor-cmd-name").textContent = "/" + r.name;
   document.getElementById("editor-code").value = r.code;
   const guide = r.code.match(/guide:\s*\{\s*en:\s*["']([^"']+)["']/)?.[1] || "";
-  document.getElementById("meta-guide").value = guide.replace(/\\n/g, "\n");
+  document.getElementById("meta-guide").value = guide.replace(/\\n/g,"\n");
   document.getElementById("editor-hint").textContent = "";
 }
-
 async function reloadCmdSource() { await loadCmdSource(); toast("↩ تم إعادة تحميل الكود", "success"); }
-
 async function saveCmdSource() {
   const name = document.getElementById("editor-select").value;
   const code = document.getElementById("editor-code").value.trim();
   if (!name || !code) { toast("اختر أمراً وأضف الكود", "error"); return; }
   const btn = document.getElementById("btn-save-cmd");
   btn.disabled = true; btn.textContent = "⏳ حفظ…";
-  const r = await apiFetch(`/api/commands/${name}/source`, { method: "POST", body: JSON.stringify({ code }) });
+  const r = await apiFetch(`/api/commands/${name}/source`, { method:"POST", body:JSON.stringify({ code }) });
   btn.disabled = false; btn.textContent = "💾 حفظ وتطبيق";
   if (r.ok) { toast(r.message || "✅ تم الحفظ", "success"); document.getElementById("editor-hint").textContent = r.message || "✅ تم التحديث"; loadCommands(); }
   else toast("❌ " + r.error, "error");
 }
-
 async function saveCmdMeta() {
   const name = document.getElementById("editor-select").value;
   if (!name) { toast("اختر أمراً أولاً", "error"); return; }
@@ -971,14 +1283,13 @@ async function saveCmdMeta() {
   const role     = parseInt(document.getElementById("meta-role").value) || 2;
   const guide    = document.getElementById("meta-guide").value.trim();
   const aliases  = aliasRaw ? aliasRaw.split(",").map(a => a.trim()).filter(Boolean) : [];
-
   const btn = document.getElementById("btn-save-meta");
   btn.disabled = true; btn.textContent = "⏳…";
   const r = await apiFetch(`/api/commands/${name}/update-meta`, {
-    method: "POST",
-    body: JSON.stringify({ newName: newName !== name ? newName : undefined, aliases, description: desc, role, guide })
+    method:"POST",
+    body:JSON.stringify({ newName: newName !== name ? newName : undefined, aliases, description:desc, role, guide })
   });
-  btn.disabled = false; btn.textContent = "⚡ تطبيق التغييرات الفورية";
+  btn.disabled = false; btn.textContent = "⚡ تطبيق";
   if (r.ok) {
     toast(r.message || "✅ تم التحديث", "success");
     document.getElementById("meta-hint").textContent = r.message || "✅";
@@ -990,7 +1301,7 @@ async function saveCmdMeta() {
   }
 }
 
-// ─── Protection ──────────────────────────────────────────────────────────────
+/* ─── Protection ─────────────────────────────────── */
 const PROTS = [
   "Stealth v2","Human Typing","Natural Presence","MQTT Health","Session Refresher",
   "Keep Alive","Rate Limiter","Outgoing Throttle","Anti-Detection","Behavior Scheduler",
@@ -1000,16 +1311,18 @@ const PROTS = [
 function loadProtections() {
   const g = document.getElementById("protGrid");
   if (!g) return;
-  g.innerHTML = PROTS.map((p,i) => `<div class="prot-pill" style="animation-delay:${i*25}ms"><div class="p-dot"></div><span>${p}</span></div>`).join("");
+  g.innerHTML = PROTS.map((p,i) =>
+    `<div class="prot-pill" style="animation-delay:${i*30}ms"><div class="p-dot"></div><span>${p}</span></div>`
+  ).join("");
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+/* ─── Settings ───────────────────────────────────── */
 async function loadSettings() {
   const r = await apiFetch("/api/config");
   if (!r.ok) return;
   const c = r.config;
-  setVal("cfg-botName",   c.botName   || "DAVID V1");
-  setVal("cfg-prefix",    c.prefix    || "/");
+  setVal("cfg-botName",  c.botName || "DAVID V1");
+  setVal("cfg-prefix",   c.prefix  || "/");
   setCheck("cfg-stealth",   c.stealth?.enable !== false);
   setCheck("cfg-keepalive", c.keepAlive?.enable !== false);
   setCheck("cfg-mqtt",      c.mqttHealthCheck?.enable !== false);
@@ -1017,8 +1330,8 @@ async function loadSettings() {
 }
 async function saveSettings() {
   const body = {
-    botName:  getVal("cfg-botName"),
-    prefix:   getVal("cfg-prefix"),
+    botName:         getVal("cfg-botName"),
+    prefix:          getVal("cfg-prefix"),
     stealth:         { enable: getCheck("cfg-stealth") },
     keepAlive:       { enable: getCheck("cfg-keepalive") },
     mqttHealthCheck: { enable: getCheck("cfg-mqtt") },
@@ -1026,94 +1339,69 @@ async function saveSettings() {
   };
   const dashPwd = getVal("cfg-dashpwd").trim();
   if (dashPwd) body.dashboard = { password: dashPwd };
-  const r = await apiFetch("/api/config", { method: "POST", body: JSON.stringify(body) });
+  const r = await apiFetch("/api/config", { method:"POST", body:JSON.stringify(body) });
   const hint = document.getElementById("settings-hint");
   if (r.ok) { toast("✅ تم حفظ الإعدادات", "success"); if (hint) hint.textContent = "✅ تم الحفظ"; }
-  else { toast("❌ " + (r.error || "فشل"), "error"); if (hint) hint.textContent = "❌ " + r.error; }
+  else { toast("❌ " + (r.error||"فشل"), "error"); if (hint) hint.textContent = "❌ " + r.error; }
 }
-function setVal(id,v)   { const e=document.getElementById(id); if(e)e.value=v; }
+function setVal(id,v)   { const e=document.getElementById(id); if(e) e.value=v; }
 function getVal(id)     { return document.getElementById(id)?.value||""; }
-function setCheck(id,v) { const e=document.getElementById(id); if(e)e.checked=!!v; }
+function setCheck(id,v) { const e=document.getElementById(id); if(e) e.checked=!!v; }
 function getCheck(id)   { return !!document.getElementById(id)?.checked; }
 
-// ─── Admin Management ─────────────────────────────────────────────────────────
-let _superAdmins = [];
-let _admins      = [];
-
+/* ─── Admins ─────────────────────────────────────── */
 async function loadAdmins() {
   const r = await apiFetch("/api/admins");
   if (!r.ok) return;
-  _superAdmins = (r.superAdminBot || []).map(String);
-  _admins      = (r.adminBot      || []).map(String);
+  _superAdmins = (r.superAdminBot||[]).map(String);
+  _admins      = (r.adminBot||[]).map(String);
   setVal("adm-ownerID", r.ownerID || "");
   renderAdminList("adm-super-list", _superAdmins, "super");
-  renderAdminList("adm-admin-list", _admins,      "admin");
+  renderAdminList("adm-admin-list", _admins, "admin");
 }
-
 function renderAdminList(containerId, list, type) {
   const el = document.getElementById(containerId);
   if (!el) return;
   if (!list.length) {
-    el.innerHTML = '<span style="font-size:12px;color:var(--t3);">لا يوجد أدمن مضاف</span>';
-    return;
+    el.innerHTML = '<span style="font-size:12px;color:var(--t3);">لا يوجد أدمن مضاف</span>'; return;
   }
-  el.innerHTML = list.map(uid => `
-    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:5px 10px;font-size:12px;font-family:monospace;">
-      <span>${esc(uid)}</span>
-      <button onclick="removeAdmin('${type}','${uid}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;">✕</button>
-    </div>`).join("");
+  el.innerHTML = list.map(uid =>
+    `<div class="admin-tag"><span>${esc(uid)}</span>
+     <button onclick="removeAdmin('${type}','${uid}')" class="admin-tag-rm">✕</button></div>`
+  ).join("");
 }
-
 function addSuperAdmin() {
   const inp = document.getElementById("adm-super-input");
-  const uid = (inp?.value || "").trim().replace(/\D/g, "");
-  if (!uid) { toast("أدخل UID صحيح", "error"); return; }
-  if (_superAdmins.includes(uid)) { toast("موجود مسبقاً", "warn"); return; }
-  _superAdmins.push(uid);
-  renderAdminList("adm-super-list", _superAdmins, "super");
+  const uid = (inp?.value||"").trim().replace(/\D/g,"");
+  if (!uid) { toast("أدخل UID صحيح","error"); return; }
+  if (_superAdmins.includes(uid)) { toast("موجود مسبقاً","warn"); return; }
+  _superAdmins.push(uid); renderAdminList("adm-super-list",_superAdmins,"super");
   if (inp) inp.value = "";
 }
-
 function addAdmin() {
   const inp = document.getElementById("adm-admin-input");
-  const uid = (inp?.value || "").trim().replace(/\D/g, "");
-  if (!uid) { toast("أدخل UID صحيح", "error"); return; }
-  if (_admins.includes(uid)) { toast("موجود مسبقاً", "warn"); return; }
-  _admins.push(uid);
-  renderAdminList("adm-admin-list", _admins, "admin");
+  const uid = (inp?.value||"").trim().replace(/\D/g,"");
+  if (!uid) { toast("أدخل UID صحيح","error"); return; }
+  if (_admins.includes(uid)) { toast("موجود مسبقاً","warn"); return; }
+  _admins.push(uid); renderAdminList("adm-admin-list",_admins,"admin");
   if (inp) inp.value = "";
 }
-
 function removeAdmin(type, uid) {
-  if (type === "super") {
-    _superAdmins = _superAdmins.filter(x => x !== uid);
-    renderAdminList("adm-super-list", _superAdmins, "super");
-  } else {
-    _admins = _admins.filter(x => x !== uid);
-    renderAdminList("adm-admin-list", _admins, "admin");
-  }
+  if (type === "super") { _superAdmins = _superAdmins.filter(x => x !== uid); renderAdminList("adm-super-list",_superAdmins,"super"); }
+  else { _admins = _admins.filter(x => x !== uid); renderAdminList("adm-admin-list",_admins,"admin"); }
 }
-
 async function saveAdmins() {
-  const ownerID = getVal("adm-ownerID").trim().replace(/\D/g, "");
-  const body = {
-    ownerID,
-    adminBot:      _admins.map(Number),
-    superAdminBot: _superAdmins.map(Number),
-  };
-  const r = await apiFetch("/api/admins", { method: "POST", body: JSON.stringify(body) });
+  const ownerID = getVal("adm-ownerID").trim().replace(/\D/g,"");
+  const body = { ownerID, adminBot:_admins.map(Number), superAdminBot:_superAdmins.map(Number) };
+  const r = await apiFetch("/api/admins", { method:"POST", body:JSON.stringify(body) });
   const hint = document.getElementById("adm-hint");
   if (r.ok) {
-    toast("✅ تم حفظ قائمة الأدمن", "success");
-    if (hint) hint.textContent = "✅ تم الحفظ — البوت يرد على " + (_admins.length + _superAdmins.length + (ownerID ? 1 : 0)) + " شخص";
-  } else {
-    toast("❌ " + (r.error || "فشل"), "error");
-    if (hint) hint.textContent = "❌ " + r.error;
-  }
+    toast("✅ تم حفظ قائمة الأدمن","success");
+    if (hint) hint.textContent = "✅ تم الحفظ — البوت يرد على " + (_admins.length+_superAdmins.length+(ownerID?1:0)) + " شخص";
+  } else { toast("❌ "+(r.error||"فشل"),"error"); if (hint) hint.textContent = "❌ " + r.error; }
 }
 
-
-// ─── Messages ──────────────────────────────────────────────────────────────────
+/* ─── Messages ───────────────────────────────────── */
 async function loadMessages() {
   const r = await apiFetch("/api/messages");
   const el = document.getElementById("msgLog");
@@ -1126,7 +1414,7 @@ async function loadMessages() {
   }).join("");
 }
 
-// ─── Live Logs ────────────────────────────────────────────────────────────────
+/* ─── Live Logs ──────────────────────────────────── */
 function addLogLine(d) {
   _logLines.push(d);
   if (_logLines.length > 1000) _logLines.shift();
@@ -1136,8 +1424,8 @@ function addLogLine(d) {
   div.className = "log-line";
   const ts = new Date(d.ts).toTimeString().slice(0,8);
   const colorLine = d.line
-    .replace(/\[([^\]]+)\]/g, (_,g) => `<span style="color:#ffd166">[${g}]</span>`)
-    .replace(/(✔|✅)/g, '<span style="color:#30D158">$1</span>')
+    .replace(/\[([^\]]+)\]/g, (_,g) => `<span style="color:#FFD60A">[${g}]</span>`)
+    .replace(/(✔|✅)/g, '<span style="color:#32D74B">$1</span>')
     .replace(/(✘|❌|Error|error)/g, '<span style="color:#FF453A">$1</span>')
     .replace(/(⚠|warn|WARN)/g, '<span style="color:#FFD60A">$1</span>');
   div.innerHTML = `<span class="log-ts">${ts}</span>${colorLine}`;
@@ -1152,30 +1440,25 @@ function toggleAutoScroll() {
   btn.textContent = `🔒 Auto-scroll: ${_autoScroll?"تشغيل":"إيقاف"}`;
   if (_autoScroll) document.getElementById("logBox").scrollTop = document.getElementById("logBox").scrollHeight;
 }
-function clearLogs() {
-  _logLines = [];
-  document.getElementById("logBox").innerHTML = "";
-  setText("log-count","0 سطر");
-}
+function clearLogs() { _logLines = []; document.getElementById("logBox").innerHTML = ""; setText("log-count","0 سطر"); }
 async function downloadLogs() {
   const text = _logLines.map(l => new Date(l.ts).toISOString() + " " + l.line).join("\n");
-  const a    = document.createElement("a");
-  a.href     = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
-  a.download = `david-logs-${Date.now()}.txt`;
-  a.click();
+  const a = document.createElement("a");
+  a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  a.download = `david-logs-${Date.now()}.txt`; a.click();
 }
 async function loadLogsHistory() {
   const r = await apiFetch("/api/logs");
   if (r.ok && r.logs) r.logs.forEach(addLogLine);
 }
 
-// ─── Activation Tab ───────────────────────────────────────────────────────────
+/* ─── Activation ─────────────────────────────────── */
 async function loadThreadsForAct() {
   const r = await apiFetch("/api/threads");
   const el = document.getElementById("threads-list-act");
   if (!r.ok || !r.threads?.length) {
     el.style.display = "block";
-    el.innerHTML = '<p style="font-size:12px;color:var(--t2);">لا توجد غروبات مسجلة بعد. أدخل Thread ID يدوياً.</p>';
+    el.innerHTML = '<p style="font-size:12px;color:var(--t2);">لا توجد غروبات مسجلة. أدخل Thread ID يدوياً.</p>';
     return;
   }
   el.style.display = "block";
@@ -1187,175 +1470,158 @@ async function loadThreadsForAct() {
        </button>`
     ).join("") + '</div>';
 }
-
-function selectActThread(tid, name) {
-  document.getElementById("act-tid").value = tid;
-  loadActConfig();
-}
-
+function selectActThread(tid, name) { document.getElementById("act-tid").value = tid; loadActConfig(); }
 async function loadActConfig() {
   const tid = document.getElementById("act-tid").value.trim();
-  if (!tid) { toast("أدخل Thread ID أولاً", "error"); return; }
+  if (!tid) { toast("أدخل Thread ID أولاً","error"); return; }
   _actTid = tid;
   const [rCmds, rCfg] = await Promise.all([
-    _allCmds.length ? Promise.resolve({ ok: true, commands: _allCmds }) : apiFetch("/api/commands"),
+    _allCmds.length ? Promise.resolve({ ok:true, commands:_allCmds }) : apiFetch("/api/commands"),
     apiFetch(`/api/thread-commands/${tid}`)
   ]);
-  if (!rCmds.ok) { toast("❌ فشل تحميل الأوامر", "error"); return; }
+  if (!rCmds.ok) { toast("❌ فشل تحميل الأوامر","error"); return; }
   _allCmds = rCmds.commands || _allCmds;
-  const cfg = rCfg.ok ? rCfg.config : { mode: "blacklist", commands: [] };
+  const cfg = rCfg.ok ? rCfg.config : { mode:"blacklist", commands:[] };
   _actMode = cfg.mode || "blacklist";
   _actSelected = new Set(cfg.commands || []);
   setText("act-tid-display", tid);
   setActMode(_actMode, false);
   renderActGrid();
   document.getElementById("act-content").style.display = "block";
-  toast("✅ تم تحميل إعدادات الغروب", "success");
+  toast("✅ تم تحميل إعدادات الغروب","success");
 }
-
 function setActMode(mode, render = true) {
   _actMode = mode;
   document.getElementById("mode-bl").className = "mode-pill" + (mode === "blacklist" ? " active-bl" : "");
   document.getElementById("mode-wl").className = "mode-pill" + (mode === "whitelist" ? " active-wl" : "");
   const hint = document.getElementById("act-mode-hint");
-  if (mode === "blacklist") hint.textContent = "⛔ وضع التعطيل: الأوامر المحددة بالأحمر ستكون معطلة في هذا الغروب.";
-  else hint.textContent = "✅ وضع التفعيل: الأوامر المحددة بالأخضر فقط ستعمل في هذا الغروب.";
+  if (mode === "blacklist") hint.textContent = "⛔ وضع التعطيل: الأوامر المحددة ستكون معطلة في هذا الغروب.";
+  else hint.textContent = "✅ وضع التفعيل: الأوامر المحددة فقط ستعمل في هذا الغروب.";
   if (render) renderActGrid();
 }
-
 function renderActGrid() {
   const grid = document.getElementById("actGrid");
   if (!_allCmds.length) { grid.innerHTML = '<p style="color:var(--t2);font-size:13px;">جاري التحميل…</p>'; return; }
   const seen = new Set();
-  grid.innerHTML = _allCmds.filter(c => {
-    if (seen.has(c.name)) return false; seen.add(c.name); return true;
-  }).map(c => {
+  grid.innerHTML = _allCmds.filter(c => { if (seen.has(c.name)) return false; seen.add(c.name); return true; }).map(c => {
     const inList = _actSelected.has(c.name);
     const isDisabled = (_actMode === "blacklist" && inList) || (_actMode === "whitelist" && !inList);
     const catIcon = CAT_ICONS[c.category||"other"] || "📌";
     const aliases = (c.aliases||[]).filter(Boolean).slice(0,2);
-    return `<div class="act-card ${isDisabled ? "disabled-cmd" : ""}" id="act-${c.name}">
+    return `<div class="act-card ${isDisabled?"disabled-cmd":""}" id="act-${c.name}">
       <div>
         <div class="ac-name">${catIcon} /${esc(c.name)}</div>
         <div class="ac-cat">${esc(CAT_NAMES[c.category]||c.category||"أخرى")}</div>
         ${aliases.length ? `<div class="ac-alias">/${aliases.join(" / ")}</div>` : ""}
       </div>
-      <label class="switch" title="${isDisabled ? "معطّل" : "مفعّل"}">
-        <input type="checkbox" ${inList ? "checked" : ""} onchange="toggleActCmd('${c.name}',this.checked)">
+      <label class="switch">
+        <input type="checkbox" ${inList?"checked":""} onchange="toggleActCmd('${c.name}',this.checked)">
         <span class="slider"></span>
       </label>
     </div>`;
   }).join("");
 }
-
 function toggleActCmd(name, checked) {
-  if (checked) _actSelected.add(name);
-  else _actSelected.delete(name);
+  if (checked) _actSelected.add(name); else _actSelected.delete(name);
   const card = document.getElementById("act-" + name);
   if (!card) return;
   const isDisabled = (_actMode === "blacklist" && _actSelected.has(name)) || (_actMode === "whitelist" && !_actSelected.has(name));
   card.classList.toggle("disabled-cmd", isDisabled);
 }
-
 async function saveActConfig() {
-  if (!_actTid) { toast("اختر غروباً أولاً", "error"); return; }
+  if (!_actTid) { toast("اختر غروباً أولاً","error"); return; }
   const r = await apiFetch(`/api/thread-commands/${_actTid}`, {
-    method: "POST",
-    body: JSON.stringify({ mode: _actMode, commands: [..._actSelected] })
+    method:"POST", body:JSON.stringify({ mode:_actMode, commands:[..._actSelected] })
   });
   const hint = document.getElementById("act-save-hint");
-  if (r.ok) { toast(`✅ تم حفظ إعدادات الغروب ${_actTid}`, "success"); hint.textContent = "✅ تم الحفظ"; }
-  else { toast("❌ " + r.error, "error"); hint.textContent = "❌ " + r.error; }
+  if (r.ok) { toast(`✅ تم حفظ إعدادات الغروب ${_actTid}`,"success"); hint.textContent = "✅ تم الحفظ"; }
+  else { toast("❌ " + r.error,"error"); hint.textContent = "❌ " + r.error; }
 }
-
 async function resetActConfig() {
-  if (!_actTid) { toast("اختر غروباً أولاً", "error"); return; }
+  if (!_actTid) { toast("اختر غروباً أولاً","error"); return; }
   if (!confirm("هل تريد إعادة تعيين الغروب؟ سيتم تفعيل جميع الأوامر.")) return;
-  const r = await apiFetch(`/api/thread-commands/${_actTid}`, { method: "DELETE" });
+  const r = await apiFetch(`/api/thread-commands/${_actTid}`, { method:"DELETE" });
   if (r.ok) {
     _actSelected = new Set(); _actMode = "blacklist";
     setActMode("blacklist"); renderActGrid();
-    toast("✅ تم إعادة التعيين — جميع الأوامر مفعلة", "success");
-  } else toast("❌ " + r.error, "error");
+    toast("✅ تم إعادة التعيين","success");
+  } else toast("❌ " + r.error,"error");
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
+/* ─── Tab Switch with Animation ─────────────────── */
+function switchTab(tabName) {
+  const allPanes = document.querySelectorAll(".tab-pane");
+  const allTabs  = document.querySelectorAll(".tab");
+  const allBns   = document.querySelectorAll(".bn");
+
+  // Deactivate current
+  allPanes.forEach(p => p.classList.remove("active"));
+  allTabs.forEach(b => b.classList.remove("active"));
+  allBns.forEach(b => b.classList.remove("active"));
+
+  // Activate new
+  const pane = document.getElementById("tab-" + tabName);
+  if (pane) pane.classList.add("active");
+  document.querySelectorAll(`.tab[data-tab="${tabName}"]`).forEach(b => b.classList.add("active"));
+  document.querySelectorAll(`.bn[data-tab="${tabName}"]`).forEach(b => b.classList.add("active"));
+
+  // Load data for tab
+  if (tabName === "commands")   loadCommands();
+  if (tabName === "protection") loadProtections();
+  if (tabName === "settings")   loadSettings();
+  if (tabName === "messages")   loadMessages();
+  if (tabName === "logs")       loadLogsHistory();
+  if (tabName === "editor")     loadCommands().then(() => {});
+  if (tabName === "activation") { if (!_allCmds.length) loadCommands(); }
+
+  _prevTab = tabName;
+}
+
+// Desktop tabs
 document.querySelectorAll(".tab").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    const pane = document.getElementById("tab-" + btn.dataset.tab);
-    if (pane) pane.classList.add("active");
-    const t = btn.dataset.tab;
-    if (t === "commands")   loadCommands();
-    if (t === "protection") loadProtections();
-    if (t === "settings")   loadSettings();
-    if (t === "messages")   loadMessages();
-    if (t === "logs")       loadLogsHistory();
-    if (t === "editor")     loadCommands().then(() => {});
-    if (t === "activation") { if (!_allCmds.length) loadCommands(); }
-  });
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 
-// ─── Bottom Nav ──────────────────────────────────────────────────────────────
-document.querySelectorAll("#bottomNav .bn-item").forEach(btn => {
+// Bottom nav
+document.querySelectorAll(".bn").forEach(btn => {
   btn.addEventListener("click", () => {
-    const t = btn.dataset.tab;
-    // sync with desktop tabs
-    document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
-    document.querySelectorAll("#bottomNav .bn-item").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    const desktopTab = document.querySelector(`.tab[data-tab="${t}"]`);
-    if (desktopTab) desktopTab.classList.add("active");
-    const pane = document.getElementById("tab-" + t);
-    if (pane) pane.classList.add("active");
-    if (t === "commands")   loadCommands();
-    if (t === "protection") loadProtections();
-    if (t === "settings")   loadSettings();
-    if (t === "messages")   loadMessages();
-    if (t === "logs")       loadLogsHistory();
-    if (t === "editor")     loadCommands().then(() => {});
-    if (t === "activation") { if (!_allCmds.length) loadCommands(); }
+    switchTab(btn.dataset.tab);
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 });
 
-// sync bottom nav when desktop tabs clicked
-document.querySelectorAll(".tab").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const t = btn.dataset.tab;
-    document.querySelectorAll("#bottomNav .bn-item").forEach(b => {
-      b.classList.toggle("active", b.dataset.tab === t);
-    });
-  });
-});
-
-// ─── Event delegation for admin inputs ────────────────────────────────────────
+// Admin input keyboard shortcuts
 document.addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
   if (e.target.id === "adm-super-input") addSuperAdmin();
   if (e.target.id === "adm-admin-input") addAdmin();
 });
 
-// ─── Toast ─────────────────────────────────────────────────────────────────────
-function toast(msg, type="") {
+/* ─── Toast ──────────────────────────────────────── */
+function toast(msg, type = "") {
   const c = document.getElementById("toast-container");
   const t = document.createElement("div");
   t.className = "toast " + type;
   t.textContent = msg;
   c.appendChild(t);
-  setTimeout(() => { t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },3500);
+  setTimeout(() => {
+    t.style.transition = "opacity .3s, transform .3s";
+    t.style.opacity = "0";
+    t.style.transform = "translateY(8px)";
+    setTimeout(() => t.remove(), 300);
+  }, 3500);
 }
-function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
-// ─── Boot ─────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* ─── Boot ───────────────────────────────────────── */
 (async () => {
   if (_token) {
     const ok = await checkAuth();
     if (ok) showApp();
-    else { _token=""; localStorage.removeItem("david_token"); }
+    else { _token = ""; localStorage.removeItem("david_token"); }
   }
 })();
 </script>
