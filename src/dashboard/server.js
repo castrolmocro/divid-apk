@@ -411,9 +411,6 @@ function startDashboard(port = 5000) {
     socket.on("ping-bot", () => socket.emit("pong-bot", { ts: Date.now() }));
   });
 
-  // ── Health check (Railway / Render / Fly.io) ──────────────────────────────────
-  app.get("/health", (_, res) => res.json({ ok: true, ts: Date.now(), uptime: process.uptime() }));
-
   // ── Catch-all SPA ─────────────────────────────────────────────────────────────
   app.get("*", (_, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
