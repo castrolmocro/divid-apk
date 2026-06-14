@@ -417,16 +417,19 @@ function startDashboard(port = 5000) {
   // ── Catch-all SPA ─────────────────────────────────────────────────────────────
   app.get("*", (_, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
-  _server.listen(port, "0.0.0.0", () => {
-    console.log();
-    console.log(chalk.cyan("  ╔══════════════════════════════════════════╗"));
-    console.log(chalk.cyan(`  ║  🌐 Dashboard: http://0.0.0.0:${port}       ║`));
-    console.log(chalk.cyan("  ╚══════════════════════════════════════════╝"));
-    console.log();
-  });
-
   setInterval(() => { if (_io) _io.emit("stats-update", getStats()); }, 5000);
-  return { app, server: _server, io: _io };
+
+  return new Promise((resolve, reject) => {
+    _server.listen(port, "0.0.0.0", () => {
+      console.log();
+      console.log(chalk.cyan("  ╔══════════════════════════════════════════╗"));
+      console.log(chalk.cyan(`  ║  🌐 Dashboard: http://0.0.0.0:${port}       ║`));
+      console.log(chalk.cyan("  ╚══════════════════════════════════════════╝"));
+      console.log();
+      resolve({ app, server: _server, io: _io });
+    });
+    _server.on("error", reject);
+  });
 }
 
 module.exports = { startDashboard, getIO, interceptLogs };
