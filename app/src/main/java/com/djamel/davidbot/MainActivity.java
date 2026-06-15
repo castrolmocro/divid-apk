@@ -29,10 +29,13 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.JsResult;
@@ -656,6 +659,7 @@ public class MainActivity extends AppCompatActivity {
                 webView.evaluateJavascript(
                     "if(typeof switchTab==='function')switchTab('" + tabTarget + "');", null);
             });
+            addPressAnim(chip);
             TextView emTv = new TextView(this);
             emTv.setText(t[0]);
             emTv.setTextSize(18);
@@ -737,64 +741,78 @@ public class MainActivity extends AppCompatActivity {
 
         engCard.addView(engStatRow);
 
-        // Buttons row
+        // ── Buttons row — iOS 26 pill style ─────────────────────────────
         LinearLayout engBtnRow = new LinearLayout(this);
         engBtnRow.setOrientation(LinearLayout.HORIZONTAL);
         LinearLayout.LayoutParams ebrLp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        ebrLp.topMargin = dp(10);
+        ebrLp.topMargin = dp(12);
         engBtnRow.setLayoutParams(ebrLp);
 
-        // Start
-        android.widget.Button startBtn = new android.widget.Button(this);
-        startBtn.setText("▶  تشغيل");
-        startBtn.setTextSize(11.5f);
-        startBtn.setTypeface(null, Typeface.BOLD);
-        startBtn.setTextColor(botEngineRunning ? Color.parseColor("#2A4A2A") : Color.BLACK);
-        startBtn.setBackground(makeRoundRect(dp(11), botEngineRunning
-            ? Color.parseColor("#1A3A1A") : Color.parseColor("#32D74B")));
-        startBtn.setAlpha(botEngineRunning ? 0.45f : 1f);
-        LinearLayout.LayoutParams sb1 = new LinearLayout.LayoutParams(0, dp(38), 1f);
-        sb1.rightMargin = dp(5);
+        // START button
+        LinearLayout startBtn = makeEngBtn(
+            "▶  تشغيل",
+            botEngineRunning ? Color.parseColor("#1A3A1A") : Color.parseColor("#32D74B"),
+            botEngineRunning ? Color.parseColor("#2A5A2A") : Color.BLACK,
+            botEngineRunning ? 0.4f : 1f);
+        LinearLayout.LayoutParams sb1 = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        sb1.rightMargin = dp(6);
         startBtn.setLayoutParams(sb1);
-        startBtn.setOnClickListener(v -> {
-            drawerLayout.closeDrawer(drawerPanel);
-            startBotEngine();
-        });
+        if (!botEngineRunning) {
+            startBtn.setOnClickListener(v -> {
+                drawerLayout.closeDrawer(drawerPanel);
+                startBotEngine();
+            });
+            addPressAnim(startBtn);
+        }
         engBtnRow.addView(startBtn);
 
-        // Stop
-        android.widget.Button stopBtn = new android.widget.Button(this);
-        stopBtn.setText("⏹  إيقاف");
-        stopBtn.setTextSize(11.5f);
-        stopBtn.setTypeface(null, Typeface.BOLD);
-        stopBtn.setTextColor(botEngineRunning ? Color.WHITE : Color.parseColor("#4A2A2A"));
-        stopBtn.setBackground(makeRoundRect(dp(11), botEngineRunning
-            ? Color.parseColor("#FF453A") : Color.parseColor("#2A0A0A")));
-        stopBtn.setAlpha(botEngineRunning ? 1f : 0.4f);
-        LinearLayout.LayoutParams sb2 = new LinearLayout.LayoutParams(0, dp(38), 1f);
-        sb2.rightMargin = dp(5);
+        // STOP button
+        LinearLayout stopBtn = makeEngBtn(
+            "⏹  إيقاف",
+            botEngineRunning ? Color.parseColor("#FF453A") : Color.parseColor("#2A0A0A"),
+            botEngineRunning ? Color.WHITE : Color.parseColor("#4A1A1A"),
+            botEngineRunning ? 1f : 0.4f);
+        LinearLayout.LayoutParams sb2 = new LinearLayout.LayoutParams(0, dp(44), 1f);
+        sb2.rightMargin = dp(6);
         stopBtn.setLayoutParams(sb2);
-        stopBtn.setOnClickListener(v -> {
-            drawerLayout.closeDrawer(drawerPanel);
-            stopBotEngine();
-        });
+        if (botEngineRunning) {
+            stopBtn.setOnClickListener(v -> {
+                drawerLayout.closeDrawer(drawerPanel);
+                stopBotEngine();
+            });
+            addPressAnim(stopBtn);
+        }
         engBtnRow.addView(stopBtn);
 
-        // Restart
-        android.widget.Button rstBtn = new android.widget.Button(this);
-        rstBtn.setText("🔄");
-        rstBtn.setTextSize(14);
-        rstBtn.setTextColor(Color.parseColor("#FF9F0A"));
-        rstBtn.setBackground(makeRoundRect(dp(11), Color.parseColor("#2A1800")));
-        rstBtn.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(38)));
+        // RESTART button (always enabled)
+        LinearLayout rstBtn = makeEngBtn("🔄", Color.parseColor("#2A1800"),
+            Color.parseColor("#FF9F0A"), 1f);
+        rstBtn.setLayoutParams(new LinearLayout.LayoutParams(dp(54), dp(44)));
         rstBtn.setOnClickListener(v -> {
             drawerLayout.closeDrawer(drawerPanel);
             restartBotEngine();
         });
+        addPressAnim(rstBtn);
         engBtnRow.addView(rstBtn);
 
         engCard.addView(engBtnRow);
+
+        // Dashboard shortcut (only when running)
+        if (botEngineRunning) {
+            LinearLayout dashBtn = makeEngBtn("🖥  فتح الواجهة",
+                Color.parseColor("#0A2A4A"), Color.parseColor("#5AC8FA"), 1f);
+            LinearLayout.LayoutParams dbLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40));
+            dbLp.topMargin = dp(7);
+            dashBtn.setLayoutParams(dbLp);
+            dashBtn.setOnClickListener(v -> {
+                drawerLayout.closeDrawer(drawerPanel);
+                loadUrl("http://localhost:5000");
+            });
+            addPressAnim(dashBtn);
+            engCard.addView(dashBtn);
+        }
 
         // Settings link
         TextView engSettTv = new TextView(this);
@@ -804,9 +822,10 @@ public class MainActivity extends AppCompatActivity {
         engSettTv.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams estLp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        estLp.topMargin = dp(8);
+        estLp.topMargin = dp(9);
         engSettTv.setLayoutParams(estLp);
         engSettTv.setOnClickListener(v -> showBotEngineSettingsDialog());
+        addPressAnim(engSettTv);
         engCard.addView(engSettTv);
 
         content.addView(engCard);
@@ -957,6 +976,7 @@ public class MainActivity extends AppCompatActivity {
             checkTv.setLayoutParams(new LinearLayout.LayoutParams(dp(22), dp(22)));
             row.addView(checkTv);
         }
+        addPressAnim(row);
         return row;
     }
 
@@ -1012,7 +1032,54 @@ public class MainActivity extends AppCompatActivity {
         arrow.setLayoutParams(arrowLp);
         btn.addView(arrow);
 
+        addPressAnim(btn);
         return btn;
+    }
+
+    /** iOS 26 pill button for bot engine panel. */
+    private LinearLayout makeEngBtn(String text, int bgColor, int textColor, float alpha) {
+        LinearLayout btn = new LinearLayout(this);
+        btn.setOrientation(LinearLayout.HORIZONTAL);
+        btn.setGravity(Gravity.CENTER);
+        btn.setBackground(makeRoundRect(dp(13), bgColor));
+        btn.setAlpha(alpha);
+        btn.setPadding(dp(6), 0, dp(6), 0);
+
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(12f);
+        tv.setTypeface(null, Typeface.BOLD);
+        tv.setTextColor(textColor);
+        tv.setGravity(Gravity.CENTER);
+        btn.addView(tv);
+        return btn;
+    }
+
+    /** iOS 26 spring press animation — scale in on DOWN, spring back on UP. */
+    @SuppressLint("ClickableViewAccessibility")
+    private void addPressAnim(View v) {
+        v.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate()
+                        .scaleX(0.93f).scaleY(0.93f)
+                        .alpha(0.72f)
+                        .setDuration(85)
+                        .setInterpolator(new DecelerateInterpolator(2f))
+                        .start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate()
+                        .scaleX(1f).scaleY(1f)
+                        .alpha(1f)
+                        .setDuration(400)
+                        .setInterpolator(new OvershootInterpolator(3.5f))
+                        .start();
+                    break;
+            }
+            return false; // allow click events to pass through
+        });
     }
 
     private void addSectionLabel(LinearLayout parent, String text) {
@@ -2045,9 +2112,21 @@ public class MainActivity extends AppCompatActivity {
             else
                 startService(i);
             Toast.makeText(this, "⏳ جاري تشغيل البوت في الخلفية…", Toast.LENGTH_LONG).show();
-            // After 5s check if it came online
+            // After 5s: check status → if online load dashboard, update profile URL
             botStatusHandler.postDelayed(() ->
-                checkBotEngineStatus(() -> buildDrawerContent()), 5000);
+                checkBotEngineStatus(() -> {
+                    buildDrawerContent();
+                    if (botEngineRunning) {
+                        // Ensure active profile points to localhost
+                        BotProfile act = getActiveProfile();
+                        if (!act.url.contains("localhost") && !act.url.contains("127.0.0.1")) {
+                            act.url = "http://localhost:5000";
+                            saveProfiles();
+                        }
+                        loadUrl("http://localhost:5000");
+                        Toast.makeText(this, "✅ البوت يعمل — تحميل الواجهة…", Toast.LENGTH_SHORT).show();
+                    }
+                }), 5000);
         } catch (SecurityException se) {
             new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
                 .setTitle("❌ صلاحية مرفوضة")
