@@ -92,6 +92,15 @@ public class MainActivity extends AppCompatActivity {
     // ── Phone-as-Host: WakeLock ───────────────────────────────────────────
     private PowerManager.WakeLock wakeLock;
 
+    // ── Bot Engine Runner ─────────────────────────────────────────────────
+    private boolean  botEngineRunning  = false;
+    private final Handler   botStatusHandler  = new Handler(Looper.getMainLooper());
+    private Runnable botStatusRunnable = null;
+    private static final String TERMUX_PKG        = "com.termux";
+    private static final String TERMUX_RUN_SVC    = "com.termux.app.RunCommandService";
+    private static final String TERMUX_RUN_ACTION = "com.termux.RUN_COMMAND";
+    private static final String PREF_BOT_PATH     = "bot_engine_path";
+
     // ── Custom Avatar + Display Name ──────────────────────────────────────
     private String botAvatarB64       = null;
     private String appDisplayName     = "DAVID V1";
@@ -225,6 +234,19 @@ public class MainActivity extends AppCompatActivity {
         setupSwipeRefresh();
         requestNeededPermissions();
         loadUrl(getActiveUrl());
+        startBotStatusMonitor();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        startBotStatusMonitor();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopBotStatusMonitor();
     }
 
     // ── Profile Management ───────────────────────────────────────────────
@@ -648,6 +670,147 @@ public class MainActivity extends AppCompatActivity {
             navChips.addView(chip);
         }
         content.addView(navChips);
+
+        addDivider(content);
+
+        // ── Bot Engine Status Panel ─────────────────────────────────────────
+        addSectionLabel(content, "🤖 محرك البوت");
+
+        String botPath = prefs.getString(PREF_BOT_PATH, "/sdcard/DAVID-V1");
+        int cardBg = botEngineRunning ? Color.parseColor("#0A2215") : Color.parseColor("#220A0A");
+        int dotClr = botEngineRunning ? Color.parseColor("#32D74B") : Color.parseColor("#FF453A");
+
+        LinearLayout engCard = new LinearLayout(this);
+        engCard.setOrientation(LinearLayout.VERTICAL);
+        engCard.setBackground(makeRoundRect(dp(16), cardBg));
+        engCard.setPadding(dp(14), dp(13), dp(14), dp(13));
+        LinearLayout.LayoutParams ecLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ecLp.bottomMargin = dp(8);
+        engCard.setLayoutParams(ecLp);
+
+        // Status row (dot + text + path)
+        LinearLayout engStatRow = new LinearLayout(this);
+        engStatRow.setOrientation(LinearLayout.HORIZONTAL);
+        engStatRow.setGravity(Gravity.CENTER_VERTICAL);
+        engStatRow.setLayoutParams(new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView engDot = new TextView(this);
+        engDot.setText("●");
+        engDot.setTextSize(16);
+        engDot.setTextColor(dotClr);
+        LinearLayout.LayoutParams edLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        edLp.rightMargin = dp(8);
+        engDot.setLayoutParams(edLp);
+        engStatRow.addView(engDot);
+
+        LinearLayout engTxtCol = new LinearLayout(this);
+        engTxtCol.setOrientation(LinearLayout.VERTICAL);
+        engTxtCol.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView engStatusTv = new TextView(this);
+        engStatusTv.setText(botEngineRunning ? "البوت يعمل  ✓" : "البوت متوقف");
+        engStatusTv.setTextSize(13.5f);
+        engStatusTv.setTypeface(null, Typeface.BOLD);
+        engStatusTv.setTextColor(dotClr);
+        engTxtCol.addView(engStatusTv);
+
+        TextView engPathTv = new TextView(this);
+        engPathTv.setText(botPath.replace("/sdcard/", "~/"));
+        engPathTv.setTextSize(10f);
+        engPathTv.setTextColor(Color.parseColor("#636366"));
+        engTxtCol.addView(engPathTv);
+
+        engStatRow.addView(engTxtCol);
+
+        // Refresh status button
+        TextView refreshDot = new TextView(this);
+        refreshDot.setText("↻");
+        refreshDot.setTextSize(18);
+        refreshDot.setTextColor(Color.parseColor("#636366"));
+        refreshDot.setPadding(dp(6), 0, 0, 0);
+        refreshDot.setOnClickListener(v ->
+            checkBotEngineStatus(() -> buildDrawerContent()));
+        engStatRow.addView(refreshDot);
+
+        engCard.addView(engStatRow);
+
+        // Buttons row
+        LinearLayout engBtnRow = new LinearLayout(this);
+        engBtnRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams ebrLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ebrLp.topMargin = dp(10);
+        engBtnRow.setLayoutParams(ebrLp);
+
+        // Start
+        android.widget.Button startBtn = new android.widget.Button(this);
+        startBtn.setText("▶  تشغيل");
+        startBtn.setTextSize(11.5f);
+        startBtn.setTypeface(null, Typeface.BOLD);
+        startBtn.setTextColor(botEngineRunning ? Color.parseColor("#2A4A2A") : Color.BLACK);
+        startBtn.setBackground(makeRoundRect(dp(11), botEngineRunning
+            ? Color.parseColor("#1A3A1A") : Color.parseColor("#32D74B")));
+        startBtn.setAlpha(botEngineRunning ? 0.45f : 1f);
+        LinearLayout.LayoutParams sb1 = new LinearLayout.LayoutParams(0, dp(38), 1f);
+        sb1.rightMargin = dp(5);
+        startBtn.setLayoutParams(sb1);
+        startBtn.setOnClickListener(v -> {
+            drawerLayout.closeDrawer(drawerPanel);
+            startBotEngine();
+        });
+        engBtnRow.addView(startBtn);
+
+        // Stop
+        android.widget.Button stopBtn = new android.widget.Button(this);
+        stopBtn.setText("⏹  إيقاف");
+        stopBtn.setTextSize(11.5f);
+        stopBtn.setTypeface(null, Typeface.BOLD);
+        stopBtn.setTextColor(botEngineRunning ? Color.WHITE : Color.parseColor("#4A2A2A"));
+        stopBtn.setBackground(makeRoundRect(dp(11), botEngineRunning
+            ? Color.parseColor("#FF453A") : Color.parseColor("#2A0A0A")));
+        stopBtn.setAlpha(botEngineRunning ? 1f : 0.4f);
+        LinearLayout.LayoutParams sb2 = new LinearLayout.LayoutParams(0, dp(38), 1f);
+        sb2.rightMargin = dp(5);
+        stopBtn.setLayoutParams(sb2);
+        stopBtn.setOnClickListener(v -> {
+            drawerLayout.closeDrawer(drawerPanel);
+            stopBotEngine();
+        });
+        engBtnRow.addView(stopBtn);
+
+        // Restart
+        android.widget.Button rstBtn = new android.widget.Button(this);
+        rstBtn.setText("🔄");
+        rstBtn.setTextSize(14);
+        rstBtn.setTextColor(Color.parseColor("#FF9F0A"));
+        rstBtn.setBackground(makeRoundRect(dp(11), Color.parseColor("#2A1800")));
+        rstBtn.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(38)));
+        rstBtn.setOnClickListener(v -> {
+            drawerLayout.closeDrawer(drawerPanel);
+            restartBotEngine();
+        });
+        engBtnRow.addView(rstBtn);
+
+        engCard.addView(engBtnRow);
+
+        // Settings link
+        TextView engSettTv = new TextView(this);
+        engSettTv.setText("⚙️  تغيير مسار البوت");
+        engSettTv.setTextSize(10.5f);
+        engSettTv.setTextColor(Color.parseColor("#48484A"));
+        engSettTv.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams estLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        estLp.topMargin = dp(8);
+        engSettTv.setLayoutParams(estLp);
+        engSettTv.setOnClickListener(v -> showBotEngineSettingsDialog());
+        engCard.addView(engSettTv);
+
+        content.addView(engCard);
+        // ── End Bot Engine Panel ────────────────────────────────────────────
 
         addDivider(content);
 
@@ -1834,5 +1997,201 @@ public class MainActivity extends AppCompatActivity {
         et.setPadding(0, dp(4), 0, dp(8));
         et.setSelectAllOnFocus(true);
         return et;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  BOT ENGINE RUNNER — run node index.js via Termux background service
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** Returns true if Termux is installed on the device. */
+    private boolean isTermuxInstalled() {
+        try {
+            getPackageManager().getPackageInfo(TERMUX_PKG, 0);
+            return true;
+        } catch (Exception e) { return false; }
+    }
+
+    /** Starts `node index.js` inside Termux as a background process (no terminal window). */
+    private void startBotEngine() {
+        if (!isTermuxInstalled()) {
+            new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("❌ Termux غير مثبت")
+                .setMessage("يحتاج محرك البوت إلى Termux مثبتاً مع Node.js.\n\nالخطوات:\n1. حمّل Termux من F-Droid\n2. شغّل: pkg install nodejs git\n3. حمّل ملفات البوت في /sdcard/DAVID-V1\n4. أعطِ صلاحية RUN_COMMAND من إعدادات Termux")
+                .setPositiveButton("📥 تحميل Termux", (d, w) -> {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://f-droid.org/packages/com.termux/"))); }
+                    catch (Exception ignored) {}
+                })
+                .setNegativeButton("إغلاق", null)
+                .show();
+            return;
+        }
+        String botPath = prefs.getString(PREF_BOT_PATH, "/sdcard/DAVID-V1");
+        // Build the shell command: kill any existing node, then start fresh in background
+        String cmd = "cd '" + botPath + "' && " +
+                     "pkill -f 'node index.js' 2>/dev/null; " +
+                     "nohup node index.js > '" + botPath + "/bot.log' 2>&1 &";
+        Intent i = new Intent();
+        i.setClassName(TERMUX_PKG, TERMUX_RUN_SVC);
+        i.setAction(TERMUX_RUN_ACTION);
+        i.putExtra("com.termux.RUN_COMMAND_PATH",
+            "/data/data/com.termux/files/usr/bin/sh");
+        i.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"-c", cmd});
+        i.putExtra("com.termux.RUN_COMMAND_WORKDIR", botPath);
+        i.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                startForegroundService(i);
+            else
+                startService(i);
+            Toast.makeText(this, "⏳ جاري تشغيل البوت في الخلفية…", Toast.LENGTH_LONG).show();
+            // After 5s check if it came online
+            botStatusHandler.postDelayed(() ->
+                checkBotEngineStatus(() -> buildDrawerContent()), 5000);
+        } catch (SecurityException se) {
+            new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("❌ صلاحية مرفوضة")
+                .setMessage("افتح تطبيق Termux ثم شغّل الأمر:\n\ntermux-open-url termux://settings\n\nأو اذهب إلى:\nTermux ← Settings ← Allow External Apps\nوفعّل الخيار.")
+                .setPositiveButton("فهمت", null)
+                .show();
+        } catch (Exception e) {
+            Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Kills the node process via Termux. */
+    private void stopBotEngine() {
+        if (!isTermuxInstalled()) return;
+        Intent i = new Intent();
+        i.setClassName(TERMUX_PKG, TERMUX_RUN_SVC);
+        i.setAction(TERMUX_RUN_ACTION);
+        i.putExtra("com.termux.RUN_COMMAND_PATH",
+            "/data/data/com.termux/files/usr/bin/sh");
+        i.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",
+            new String[]{"-c", "pkill -f 'node index.js'; pkill -f node"});
+        i.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/sdcard");
+        i.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                startForegroundService(i);
+            else
+                startService(i);
+            botEngineRunning = false;
+            buildDrawerContent();
+            // Also reload WebView with connection error after 1s
+            botStatusHandler.postDelayed(() -> {
+                checkBotEngineStatus(null);
+                buildDrawerContent();
+            }, 2000);
+            Toast.makeText(this, "✅ تم إيقاف البوت", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** Stops then starts the bot with a 2-second gap. */
+    private void restartBotEngine() {
+        Toast.makeText(this, "🔄 جاري إعادة تشغيل البوت…", Toast.LENGTH_SHORT).show();
+        stopBotEngine();
+        botStatusHandler.postDelayed(this::startBotEngine, 2500);
+    }
+
+    /**
+     * Pings localhost:5000 on a background thread.
+     * Updates {@link #botEngineRunning} then runs {@code onUpdate} on the main thread.
+     */
+    private void checkBotEngineStatus(Runnable onUpdate) {
+        new Thread(() -> {
+            boolean alive = false;
+            try {
+                java.net.URL u = new java.net.URL("http://localhost:5000");
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) u.openConnection();
+                c.setConnectTimeout(1500);
+                c.setReadTimeout(1500);
+                c.connect();
+                alive = (c.getResponseCode() < 600);
+                c.disconnect();
+            } catch (Exception ignored) {}
+            final boolean isAlive = alive;
+            botStatusHandler.post(() -> {
+                botEngineRunning = isAlive;
+                if (onUpdate != null) onUpdate.run();
+            });
+        }).start();
+    }
+
+    /** Starts the periodic status monitor (pings every 8 seconds). */
+    private void startBotStatusMonitor() {
+        stopBotStatusMonitor(); // avoid duplicate runnables
+        botStatusRunnable = new Runnable() {
+            @Override public void run() {
+                checkBotEngineStatus(() -> buildDrawerContent());
+                botStatusHandler.postDelayed(this, 8000);
+            }
+        };
+        botStatusHandler.postDelayed(botStatusRunnable, 2000);
+    }
+
+    /** Stops the periodic status monitor. */
+    private void stopBotStatusMonitor() {
+        if (botStatusRunnable != null) {
+            botStatusHandler.removeCallbacks(botStatusRunnable);
+            botStatusRunnable = null;
+        }
+    }
+
+    /** Dialog to configure the bot folder path. */
+    private void showBotEngineSettingsDialog() {
+        String cur = prefs.getString(PREF_BOT_PATH, "/sdcard/DAVID-V1");
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(Color.parseColor("#1C1C1E"));
+        layout.setPadding(dp(20), dp(16), dp(20), dp(16));
+
+        layout.addView(makeLabel("📁 مسار مجلد البوت (يحتوي index.js)"));
+        EditText pathEt = makeInput(cur, "/sdcard/DAVID-V1");
+        layout.addView(pathEt);
+
+        // Quick-fill shortcuts
+        String[] presets = {"/sdcard/DAVID-V1", "/storage/emulated/0/DAVID-V1",
+                            "/data/data/com.termux/files/home/DAVID-V1"};
+        for (String p : presets) {
+            TextView pv = new TextView(this);
+            pv.setText("📌 " + p);
+            pv.setTextSize(11);
+            pv.setTextColor(Color.parseColor("#0A84FF"));
+            pv.setPadding(0, dp(6), 0, dp(2));
+            pv.setOnClickListener(v -> pathEt.setText(p));
+            layout.addView(pv);
+        }
+
+        TextView hint2 = new TextView(this);
+        hint2.setText("\nملاحظة: تأكد من تفعيل 'Allow External Apps' في إعدادات Termux قبل أول تشغيل.");
+        hint2.setTextSize(11);
+        hint2.setTextColor(Color.parseColor("#636366"));
+        hint2.setLineSpacing(0, 1.4f);
+        layout.addView(hint2);
+
+        new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+            .setTitle("⚙️ إعدادات محرك البوت")
+            .setView(layout)
+            .setPositiveButton("💾 حفظ", (d, w) -> {
+                String p = pathEt.getText().toString().trim();
+                if (!p.isEmpty()) {
+                    prefs.edit().putString(PREF_BOT_PATH, p).apply();
+                    buildDrawerContent();
+                    Toast.makeText(this, "✅ مسار محفوظ", Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNeutralButton("📱 ضبط localhost", (d, w) -> {
+                BotProfile active = getActiveProfile();
+                active.url = "http://localhost:5000";
+                saveProfiles();
+                loadUrl("http://localhost:5000");
+                buildDrawerContent();
+                Toast.makeText(this, "✅ رابط البوت: localhost:5000", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("❌ إلغاء", null)
+            .show();
     }
 }
